@@ -92,11 +92,13 @@ class Proposer(Worker):
 
             if len(self.rcv_phase1b) > len(self.network['acceptors']) / 2:
                 print('Quorum for PHASE_1B')
+
                 filtered = filter(lambda x: x == self.c_rnd, self.rcv_phase1b)
+
                 if len(list(filtered)) == len(self.rcv_phase1b):
                     if v_rnd not in self.v_rnd2v_val: self.v_rnd2v_val[v_rnd] = []
-                    self.v_rnd2v_val[v_rnd].append(v_val)
 
+                    self.v_rnd2v_val[v_rnd].append(v_val)
 
                     k = np.max(self.rcv_v_rnd) # largest v-rnd velued received
                     V = list(set(self.v_rnd2v_val[k])) # set of (v-rnd, v-val) received with v-rnd=k
