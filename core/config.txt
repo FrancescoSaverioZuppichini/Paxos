@@ -1,4 +1,5 @@
 clients localhost 5000
 proposers localhost 6000
 acceptors localhost 7000
+acceptors localhost 9000
 learners localhost 8000

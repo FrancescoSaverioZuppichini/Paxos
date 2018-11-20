@@ -16,7 +16,7 @@ network = {'clients' : [], 'proposers' : [], 'acceptors' : [], 'learners': []}
 
 [w.start() for w in workers]
 
-
+time.sleep(0.1)
 p = network['proposers'][0]
 p.propose(0)
 #
