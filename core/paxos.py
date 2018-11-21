@@ -145,7 +145,7 @@ class Proposer(Worker):
                 self.rcv_phase1b.append(rnd)
 
                 if len(self.rcv_phase1b) > len(self.group.network['acceptors']) / 2:
-                    loginfo('{} quorum for PHASE_1B'.format(self))
+                    loginfo('{} quorum={} for PHASE_1B'.format(self, len(self.rcv_phase1b)))
 
                     filtered = filter(lambda x: x == self.c_rnd, self.rcv_phase1b)
 
@@ -178,12 +178,11 @@ class Proposer(Worker):
                 self.rcv_phase2b.append(v_rnd)
 
                 if len(self.rcv_phase2b) > len(self.group.network['acceptors']) // 2:
-                    loginfo('{} quorum for PHASE_2B'.format(self))
+                    loginfo('{} quorum={} for PHASE_2B'.format(self, len(self.rcv_phase2b)))
                     # quorum
                     filtered = filter(lambda x: x == self.c_rnd, self.rcv_phase2b)
 
                     if len(list(filtered)) == len(self.rcv_phase2b):
-                        loginfo('{:.6f}:{} PHASE_2B checked'.format(time.time(), self))
                         # all values were c-rnd
                         learners = self.group.network['learners']
 

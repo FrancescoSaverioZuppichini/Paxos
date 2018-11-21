@@ -1,20 +1,13 @@
 import time
-
-# REVIEW: deprecated
-class Config:
-    def __init__(self, role, ip, port):
-        self.role, self.ip, self.port = role, ip, port
-
-    @classmethod
-    def from_file(cls, config_file):
-        configs = []
-        with open(config_file, 'r') as f:
-            for line in f.readlines():
-                role, ip, port = line.strip().split(' ')
-                configs.append(cls(role, ip, int(port)))
-        return configs
-
-
+import tempfile
 
 def loginfo(info):
     print('[{:.6f}]:{}'.format(time.time(), info))
+
+
+def make_config(role2ip_port_n):
+    with open('temp.txt', 'w') as f:
+        for role, (ip, port, n) in role2ip_port_n.items():
+            for _ in range(n):
+                f.write('{} {} {}\n'.format(role, ip, port))
+    return 'temp.txt'
