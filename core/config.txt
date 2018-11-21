@@ -4,3 +4,4 @@ acceptors localhost 7000
 acceptors localhost 7001
 acceptors localhost 7002
 learners localhost 8000
+learners localhost 8001

@@ -1,6 +1,7 @@
 import socket
 import json
 import numpy as np
+import time
 
 from threading import Thread
 
@@ -22,12 +23,11 @@ class Worker(Thread):
 
         while True:
             conn, addr  = self.server.accept()
-            print('Connected by', addr)
             with conn:
                 msg = conn.recv(1024)
                 if not msg: break
                 msg = Message.from_enc(msg.decode())
-                print('received {}'.format(msg.phase))
+                # print('{} received {}'.format(self, msg.phase))
                 self.on_rcv(conn, msg)
 
     def on_rcv(self, conn, msg):
@@ -37,7 +37,7 @@ class Worker(Thread):
         with  socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.connect((ip, port))
             s.sendall(msg)
-            print('{}->{} msg={}'.format(self, (ip,port), msg))
+            # print('{}->{} msg={}'.format(self, (ip,port), msg))
 
     def run(self):
         self.listen()
@@ -53,6 +53,8 @@ class Worker(Thread):
                     cls = Proposer
                 elif role == 'acceptors':
                     cls = Acceptor
+                elif role == 'learners':
+                    cls = Learner
                 configs.append(cls(role, ip, int(port)))
         return configs
 
@@ -78,6 +80,9 @@ class Proposer(Worker):
         self.v = v
         self.c_rnd += 1
 
+        self.rcv_phase1b = []
+        self.rcv_phase2b = []
+
         for a in self.network['acceptors']:
             self.sendmsg(a.ip, a.port,
                          Message.make_phase_1a(self.c_rnd).encode().encode())
@@ -85,13 +90,13 @@ class Proposer(Worker):
     def on_rcv(self, conn, msg):
         if msg.phase == Message.PHASE_1B:
             rnd, v_rnd, v_val = msg.data
-            print('proposer received PHASE_1B with rnd={},v_rnd={}, v_val={}'.format(rnd, v_rnd, v_val))
+            print('{}:{} received PHASE_1B with rnd={},v_rnd={}, v_val={}'.format(time.time(), self, rnd, v_rnd, v_val))
 
             self.rcv_v_rnd.append(v_rnd)
             self.rcv_phase1b.append(rnd)
 
             if len(self.rcv_phase1b) > len(self.network['acceptors']) / 2:
-                print('Quorum for PHASE_1B')
+                print('{}:{} quorum for PHASE_1B'.format(time.time(), self))
 
                 filtered = filter(lambda x: x == self.c_rnd, self.rcv_phase1b)
 
@@ -115,19 +120,20 @@ class Proposer(Worker):
 
         elif msg.phase == Message.PHASE_2B:
             v_rnd, v_val = msg.data
+            print('{}:{} received PHASE_2B with v_rnd={}, v_val={}'.format(time.time(), self, v_rnd, v_val))
 
             self.rcv_phase2b.append(v_rnd)
 
             if len(self.rcv_phase2b) > len(self.network['acceptors']) / 2:
-                print('Quorum for PHASE_2B')
+                print('{}:{} quorum for PHASE_2B'.format(time.time(), self))
                 # quorum
                 filtered = filter(lambda x: x == self.c_rnd, self.rcv_phase2b)
 
                 if len(list(filtered)) == len(self.rcv_phase2b):
+                    # TODO shold lock after send?
                     # all values were c-rnd
-                    print('DIOCANEEE******** DECIDE')
-
-            print('proposer received PHASE_2B with v_rnd={}, v_val={}'.format(v_rnd, v_val))
+                    for l in self.network['learners']:
+                        self.sendmsg(l.ip, l.port, Message.make_decide(self.v).encode().encode())
 
 class Acceptor(Worker):
     def __init__(self, *args, **kwargs):
@@ -140,9 +146,10 @@ class Acceptor(Worker):
         if msg.phase == Message.PHASE_1A:
             c_rnd = msg.data[0]
 
-            print('acceptor received PHASE_1A with c-rnd={}'.format(c_rnd))
+            print('{}:{} received PHASE_1A with c-rnd={}'.format(time.time(), self, c_rnd))
             if c_rnd > self.rnd:
                 self.rnd = c_rnd
+                # TODO should get the correct proposer  maybe add 'from' in msg?
                 proposer = self.network['proposers'][0]
 
                 self.sendmsg(proposer.ip, proposer.port,
@@ -158,13 +165,25 @@ class Acceptor(Worker):
             self.sendmsg(proposer.ip, proposer.port,
                          Message.make_phase_2b(self.v_rnd, self.v_val).encode().encode())
 
-            print('acceptor received PHASE_2A with c-rnd={}, c_val={}'.format(c_rnd, c_val))
+
+            print('{}:{} received PHASE_2A with c-rnd={}, c_val={}'.format(time.time(), self, c_rnd, c_val))
+
+class Learner(Worker):
+
+    def on_rcv(self, conn, msg):
+        if msg.phase == Message.DECIDE:
+            v_val = msg.data[0]
+
+            print('{}:{} DECIDE v_val={}'.format(time.time(), self, v_val))
+
+
 
 class Message():
     PHASE_1A = 'PHASE_1A'
     PHASE_1B = 'PHASE_1B'
     PHASE_2A = 'PHASE_2A'
     PHASE_2B = 'PHASE_2B'
+    DECIDE = 'DECIDE'
 
     def __init__(self, phase, data):
         super().__init__()
@@ -194,5 +213,8 @@ class Message():
 
     @classmethod
     def make_phase_2b(cls, v_rnd, v_val):
-        return cls(cls.PHASE_2B, [v_rnd, v_val]
-                   )
+        return cls(cls.PHASE_2B, [v_rnd, v_val])
+
+    @classmethod
+    def make_decide(cls, v_val):
+        return cls(cls.DECIDE, [v_val])
