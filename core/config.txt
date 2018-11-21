@@ -3,10 +3,5 @@ proposers localhost 6000
 acceptors localhost 7000
 acceptors localhost 7001
 acceptors localhost 7002
-acceptors localhost 7003
-acceptors localhost 7004
-acceptors localhost 7005
-acceptors localhost 7006
-acceptors localhost 7007
 learners localhost 8000
 learners localhost 8001
