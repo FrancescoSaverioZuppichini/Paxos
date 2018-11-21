@@ -1,4 +1,4 @@
-from paxos import Worker, Group
+from paxos import Group
 from utils import make_config
 
 CONFIG_FILE = './config.txt'
@@ -10,7 +10,7 @@ CONFIG_FILE = './config.txt'
 role2ip_port_n = {
     'clients': ('239.0.0.1', 5000, 1),
     'proposers': ('239.0.0.1', 6000, 5),
-    'acceptors': ('239.0.0.1', 7000, 50),
+    'acceptors': ('239.0.0.1', 7000, 10000),
     'learners': ('239.0.0.1', 8000, 10)
 }
 

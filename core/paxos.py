@@ -19,7 +19,10 @@ class Group(Thread):
 
     def make_server(self):
         self.server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.server.bind((self.ip, self.port))
+        try:
+            self.server.bind((self.ip, self.port))
+        except OSError:
+            loginfo('group already binded by an other process')
         self.group = socket.inet_aton(self.ip)
         mreq = struct.pack('4sL', self.group, socket.INADDR_ANY)
         self.server.setsockopt(
@@ -37,6 +40,7 @@ class Group(Thread):
             msg, address = self.server.recvfrom(1024)
             msg = Message.from_enc(msg.decode())
             [w.on_rcv(msg) for w in self.workers]
+
 
     def run(self):
         self.listen()
@@ -65,7 +69,6 @@ class Group(Thread):
                 role, ip, port = line.strip().split(' ')
                 if network[role] == None:
                     network[role] = cls(role, ip, int(port))
-
                 worker = Worker.from_role(role, network[role], id=len(network[role]))
                 network[role].append(worker)
 
@@ -80,6 +83,7 @@ class Worker():
 
     def make_client(self):
         self.client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.client.settimeout(0.2)
         self.client.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, struct.pack('b', 1))
         self.client.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.client.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP,
