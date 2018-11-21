@@ -73,6 +73,7 @@ class Proposer(Worker):
 
         self.v = 0
 
+    def init_memory(self):
         self.rcv_phase1b = []
         self.rcv_phase2b = []
 
@@ -80,8 +81,7 @@ class Proposer(Worker):
         self.v = v
         self.c_rnd += 1
 
-        self.rcv_phase1b = []
-        self.rcv_phase2b = []
+        self.init_memory()
 
         for a in self.network['acceptors']:
             self.sendmsg(a.ip, a.port,
@@ -90,13 +90,13 @@ class Proposer(Worker):
     def on_rcv(self, conn, msg):
         if msg.phase == Message.PHASE_1B:
             rnd, v_rnd, v_val = msg.data
-            print('{}:{} received PHASE_1B with rnd={},v_rnd={}, v_val={}'.format(time.time(), self, rnd, v_rnd, v_val))
+            print('{:.6f}:{} received PHASE_1B with rnd={},v_rnd={}, v_val={}'.format(time.time(), self, rnd, v_rnd, v_val))
 
             self.rcv_v_rnd.append(v_rnd)
             self.rcv_phase1b.append(rnd)
 
             if len(self.rcv_phase1b) > len(self.network['acceptors']) / 2:
-                print('{}:{} quorum for PHASE_1B'.format(time.time(), self))
+                print('{:.6f}:{} quorum for PHASE_1B'.format(time.time(), self))
 
                 filtered = filter(lambda x: x == self.c_rnd, self.rcv_phase1b)
 
@@ -117,23 +117,29 @@ class Proposer(Worker):
                     for a in self.network['acceptors']:
                         self.sendmsg(a.ip, a.port,
                                      Message.make_phase_2a(self.c_rnd, self.c_val).encode().encode())
+                # prevent others quorum
+                self.rcv_phase1b = []
 
         elif msg.phase == Message.PHASE_2B:
             v_rnd, v_val = msg.data
-            print('{}:{} received PHASE_2B with v_rnd={}, v_val={}'.format(time.time(), self, v_rnd, v_val))
+            print('{:.6f}:{} received PHASE_2B with v_rnd={}, v_val={}'.format(time.time(), self, v_rnd, v_val))
 
             self.rcv_phase2b.append(v_rnd)
 
-            if len(self.rcv_phase2b) > len(self.network['acceptors']) / 2:
-                print('{}:{} quorum for PHASE_2B'.format(time.time(), self))
+            if len(self.rcv_phase2b) > len(self.network['acceptors']) // 2:
+                print('{:.6f}:{} quorum for PHASE_2B'.format(time.time(), self))
                 # quorum
                 filtered = filter(lambda x: x == self.c_rnd, self.rcv_phase2b)
 
                 if len(list(filtered)) == len(self.rcv_phase2b):
-                    # TODO shold lock after send?
+                    print('{:.6f}:{} PHASE_2B checked'.format(time.time(), self))
+                    # TODO should lock after send?
                     # all values were c-rnd
                     for l in self.network['learners']:
                         self.sendmsg(l.ip, l.port, Message.make_decide(self.v).encode().encode())
+
+                # prevent others quorum
+                self.rcv_phase2b = []
 
 class Acceptor(Worker):
     def __init__(self, *args, **kwargs):
@@ -146,7 +152,7 @@ class Acceptor(Worker):
         if msg.phase == Message.PHASE_1A:
             c_rnd = msg.data[0]
 
-            print('{}:{} received PHASE_1A with c-rnd={}'.format(time.time(), self, c_rnd))
+            print('{:.6f}:{} received PHASE_1A with c-rnd={}'.format(time.time(), self, c_rnd))
             if c_rnd > self.rnd:
                 self.rnd = c_rnd
                 # TODO should get the correct proposer  maybe add 'from' in msg?
@@ -166,7 +172,7 @@ class Acceptor(Worker):
                          Message.make_phase_2b(self.v_rnd, self.v_val).encode().encode())
 
 
-            print('{}:{} received PHASE_2A with c-rnd={}, c_val={}'.format(time.time(), self, c_rnd, c_val))
+            print('{:.6f}:{} received PHASE_2A with c-rnd={}, c_val={}'.format(time.time(), self, c_rnd, c_val))
 
 class Learner(Worker):
 
@@ -174,9 +180,7 @@ class Learner(Worker):
         if msg.phase == Message.DECIDE:
             v_val = msg.data[0]
 
-            print('{}:{} DECIDE v_val={}'.format(time.time(), self, v_val))
-
-
+            print('{:.6f}:{} DECIDE v_val={}'.format(time.time(), self, v_val))
 
 class Message():
     PHASE_1A = 'PHASE_1A'
