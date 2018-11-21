@@ -1,7 +1,5 @@
-clients localhost 5000
-proposers localhost 6000
-acceptors localhost 7000
-acceptors localhost 7001
-acceptors localhost 7002
-learners localhost 8000
-learners localhost 8001
+clients 239.0.0.1 5000
+proposers 239.0.0.1 6000
+acceptors 239.0.0.1 7000
+acceptors 239.0.0.1 7000
+learners 239.0.0.1 8000
