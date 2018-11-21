@@ -107,6 +107,8 @@ class Worker():
             cls = Acceptor
         elif role == 'learners':
             cls = Learner
+        elif role == 'clients':
+            cls = Client
         return cls(*args, **kwargs)
 
     def __str__(self):
@@ -136,10 +138,17 @@ class Proposer(Worker):
 
         acceptors = self.group.network['acceptors']
 
+        loginfo('{} send PHASE_1B'.format(self))
+
         self.sendmsg(acceptors.addr,
                      Message.make_phase_1a(self.c_rnd).encode().encode())
 
     def on_rcv(self, msg):
+
+        if msg.phase == Message.SUBMIT:
+            v = msg.data[0]
+            self.propose(v)
+
         if self.group.current_propose is self:
             if msg.phase == Message.PHASE_1B:
                 rnd, v_rnd, v_val = msg.data
@@ -237,8 +246,12 @@ class Learner(Worker):
 
             loginfo('{} DECIDE v_val={}'.format(self, v_val))
 
+class Client(Worker):
+    def submit(self, v):
+        self.sendmsg(self.group.network['proposers'].addr, Message.make_submit(v).encode().encode())
 
 class Message():
+    SUBMIT = 'SUBMIT'
     PHASE_1A = 'PHASE_1A'
     PHASE_1B = 'PHASE_1B'
     PHASE_2A = 'PHASE_2A'
@@ -258,6 +271,10 @@ class Message():
         dec = json.loads(enc)
         m = self(dec['phase'], dec['data'])
         return m
+
+    @classmethod
+    def make_submit(cls, v):
+        return cls(cls.SUBMIT, [v])
 
     @classmethod
     def make_phase_1a(cls, c_rnd):
