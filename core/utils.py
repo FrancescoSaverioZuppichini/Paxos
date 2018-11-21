@@ -1,5 +1,7 @@
-class Config:
+import time
 
+# REVIEW: deprecated
+class Config:
     def __init__(self, role, ip, port):
         self.role, self.ip, self.port = role, ip, port
 
@@ -14,3 +16,5 @@ class Config:
 
 
 
+def loginfo(info):
+    print('[{:.6f}]:{}'.format(time.time(), info))
