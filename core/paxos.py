@@ -5,80 +5,37 @@ import time
 import struct
 
 from threading import Thread
+from multiprocessing import Process
 from utils import loginfo
 
-
-class Group(Thread):
-
-    def __init__(self, role, ip, port, workers=None):
+class Worker(Thread):
+    def __init__(self, role, ip, port, id=None):
         super().__init__()
-        self.role, self.ip, self.port = role, ip, port
-        self.workers = [] if workers == None else workers
-
+        self.role, self.ip, self.port, self.id = role, ip, port, id
         self.make_server()
+        self.make_client()
 
     def make_server(self):
-        self.server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        try:
-            self.server.bind((self.ip, self.port))
-        except OSError:
-            loginfo('group already binded by an other process')
-        self.group = socket.inet_aton(self.ip)
-        mreq = struct.pack('4sL', self.group, socket.INADDR_ANY)
-        self.server.setsockopt(
-            socket.IPPROTO_IP,
-            socket.IP_ADD_MEMBERSHIP,
-            mreq)
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, struct.pack('b', 1))
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP,
+                        struct.pack('4sL', socket.inet_aton(self.ip),
+                                    socket.INADDR_ANY))
+        self.server = sock
 
     @property
     def addr(self):
-        return self.ip, self.port
+        return (self.ip, self.port)
 
-    def listen(self):
+    def run(self):
+        self.server.bind((self.ip, self.port))
+
         loginfo('{} listening'.format(self))
         while True:
             msg, address = self.server.recvfrom(1024)
             msg = Message.from_enc(msg.decode())
-            [w.on_rcv(msg) for w in self.workers]
-
-    def run(self):
-        self.listen()
-
-    def __call__(self, network):
-        self.network = network
-
-    def __getitem__(self, item):
-        return self.workers[item]
-
-    def __len__(self):
-        return len(self.workers)
-
-    def append(self, object):
-        self.workers.append(object)
-
-    def __str__(self):
-        return str((self.role, self.ip, self.port, len(self)))
-
-    @classmethod
-    def from_config(cls, config_file):
-        network = {'clients': None, 'proposers': None, 'acceptors': None, 'learners': None}
-
-        with open(config_file, 'r') as f:
-            for line in f.readlines():
-                role, ip, port = line.strip().split(' ')
-                if network[role] == None:
-                    network[role] = cls(role, ip, int(port))
-                worker = Worker.from_role(role, network[role], id=len(network[role]))
-                network[role].append(worker)
-
-        return network
-
-
-class Worker():
-    def __init__(self, group, id):
-        super().__init__()
-        self.group, self.id = group, id
-        self.make_client()
+            self.on_rcv(msg)
 
     def make_client(self):
         self.client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -86,7 +43,7 @@ class Worker():
         self.client.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, struct.pack('b', 1))
         self.client.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.client.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP,
-                               struct.pack('4sL', socket.inet_aton(self.group.ip),
+                               struct.pack('4sL', socket.inet_aton(self.ip),
                                            socket.INADDR_ANY))
     def on_rcv(self, msg):
         pass
@@ -108,11 +65,10 @@ class Worker():
             cls = Learner
         elif role == 'clients':
             cls = Client
-        return cls(*args, **kwargs)
+        return cls(role, *args, **kwargs)
 
     def __str__(self):
-        return str(self.group) + ' ' + str(self.id)
-
+        return str(self.addr) + ' ' + str(self.id)
 
 class Proposer(Worker):
     def __init__(self, *args, **kwargs):
@@ -132,77 +88,76 @@ class Proposer(Worker):
     def propose(self, v):
         self.v = v
         self.c_rnd += 1
-        self.group.current_propose = self
         self.init_memory()
 
-        acceptors = self.group.network['acceptors']
+        acceptors = self.network['acceptors'][0]
 
         loginfo('{} send PHASE_1B'.format(self))
 
-        self.sendmsg(acceptors.addr,
+        self.sendmsg(acceptors,
                      Message.make_phase_1a(self.c_rnd).encode().encode())
 
     def on_rcv(self, msg):
 
         if msg.phase == Message.SUBMIT:
-            v = msg.data[0]
+            v, self.proposer_id = msg.data
             self.propose(v)
 
-        if self.group.current_propose is self:
-            if msg.phase == Message.PHASE_1B:
-                rnd, v_rnd, v_val = msg.data
-                loginfo('{} received PHASE_1B with rnd={},v_rnd={}, v_val={}'.format(self, rnd, v_rnd, v_val))
+        if self.id == self.proposer_id:
+            if True:
+                if msg.phase == Message.PHASE_1B:
+                    rnd, v_rnd, v_val = msg.data
+                    loginfo('{} received PHASE_1B with rnd={},v_rnd={}, v_val={}'.format(self, rnd, v_rnd, v_val))
 
-                self.rcv_v_rnd.append(v_rnd)
-                self.rcv_phase1b.append(rnd)
+                    self.rcv_v_rnd.append(v_rnd)
+                    self.rcv_phase1b.append(rnd)
 
-                if len(self.rcv_phase1b) > len(self.group.network['acceptors']) / 2:
-                    loginfo('{} quorum={} for PHASE_1B'.format(self, len(self.rcv_phase1b)))
+                    if len(self.rcv_phase1b) > self.network['acceptors'][-1] / 2:
+                        loginfo('{} quorum={} for PHASE_1B'.format(self, len(self.rcv_phase1b)))
 
-                    filtered = filter(lambda x: x == self.c_rnd, self.rcv_phase1b)
+                        filtered = filter(lambda x: x == self.c_rnd, self.rcv_phase1b)
 
-                    if len(list(filtered)) == len(self.rcv_phase1b):
-                        if v_rnd not in self.v_rnd2v_val: self.v_rnd2v_val[v_rnd] = []
+                        if len(list(filtered)) == len(self.rcv_phase1b):
+                            if v_rnd not in self.v_rnd2v_val: self.v_rnd2v_val[v_rnd] = []
 
-                        self.v_rnd2v_val[v_rnd].append(v_val)
+                            self.v_rnd2v_val[v_rnd].append(v_val)
 
-                        k = np.max(self.rcv_v_rnd)  # largest v-rnd velued received
-                        V = list(set(self.v_rnd2v_val[k]))  # set of (v-rnd, v-val) received with v-rnd=k
+                            k = np.max(self.rcv_v_rnd)  # largest v-rnd velued received
+                            V = list(set(self.v_rnd2v_val[k]))  # set of (v-rnd, v-val) received with v-rnd=k
 
-                        c_val = V[0]  # the only v-val in V
+                            c_val = V[0]  # the only v-val in V
 
-                        if k == 0: c_val = self.v
+                            if k == 0: c_val = self.v
 
-                        self.c_val = c_val
+                            self.c_val = c_val
 
-                        acceptors = self.group.network['acceptors']
+                            acceptors = self.network['acceptors'][0]
 
-                        self.sendmsg(acceptors.addr,
-                                     Message.make_phase_2a(self.c_rnd, self.c_val).encode().encode())
+                            self.sendmsg(acceptors,
+                                         Message.make_phase_2a(self.c_rnd, self.c_val).encode().encode())
 
-                    # prevent others quorum
-                    self.rcv_phase1b = []
+                        # prevent others quorum
+                        self.rcv_phase1b = []
 
-            elif msg.phase == Message.PHASE_2B:
-                v_rnd, v_val = msg.data
-                loginfo('{} received PHASE_2B with v_rnd={}, v_val={}'.format(self, v_rnd, v_val))
+                elif msg.phase == Message.PHASE_2B:
+                    v_rnd, v_val = msg.data
+                    loginfo('{} received PHASE_2B with v_rnd={}, v_val={}'.format(self, v_rnd, v_val))
 
-                self.rcv_phase2b.append(v_rnd)
+                    self.rcv_phase2b.append(v_rnd)
 
-                if len(self.rcv_phase2b) > len(self.group.network['acceptors']) // 2:
-                    loginfo('{} quorum={} for PHASE_2B'.format(self, len(self.rcv_phase2b)))
-                    # quorum
-                    filtered = filter(lambda x: x == self.c_rnd, self.rcv_phase2b)
+                    if len(self.rcv_phase2b) > self.network['acceptors'][-1] // 2:
+                        loginfo('{} quorum={} for PHASE_2B'.format(self, len(self.rcv_phase2b)))
+                        # quorum
+                        filtered = filter(lambda x: x == self.c_rnd, self.rcv_phase2b)
 
-                    if len(list(filtered)) == len(self.rcv_phase2b):
-                        # all values were c-rnd
-                        learners = self.group.network['learners']
+                        if len(list(filtered)) == len(self.rcv_phase2b):
+                            # all values were c-rnd
+                            learners = self.network['learners'][0]
 
-                        self.sendmsg(learners.addr, Message.make_decide(self.v).encode().encode())
+                            self.sendmsg(learners, Message.make_decide(self.v).encode().encode())
 
-                    # prevent others quorum
-                    self.rcv_phase2b = []
-
+                        # prevent others quorum
+                        self.rcv_phase2b = []
 
 class Acceptor(Worker):
     def __init__(self, *args, **kwargs):
@@ -219,9 +174,9 @@ class Acceptor(Worker):
             if c_rnd > self.rnd:
                 self.rnd = c_rnd
                 # TODO should get the correct proposer  maybe add 'from' in msg?
-                proposers = self.group.network['proposers']
+                proposers = self.network['proposers'][0]
 
-                self.sendmsg(proposers.addr,
+                self.sendmsg(proposers,
                              Message.make_phase_1b(self.rnd, self.v_rnd, self.v_val).encode().encode())
 
         elif msg.phase == Message.PHASE_2A:
@@ -229,9 +184,9 @@ class Acceptor(Worker):
             self.v_rnd = c_rnd
             self.v_val = c_val
 
-            proposers = self.group.network['proposers']
+            proposers = self.network['proposers'][0]
 
-            self.sendmsg(proposers.addr,
+            self.sendmsg(proposers,
                          Message.make_phase_2b(self.v_rnd, self.v_val).encode().encode())
 
             loginfo('{} received PHASE_2A with c-rnd={}, c_val={}'.format(self, c_rnd, c_val))
@@ -247,7 +202,7 @@ class Learner(Worker):
 
 class Client(Worker):
     def submit(self, v):
-        self.sendmsg(self.group.network['proposers'].addr, Message.make_submit(v).encode().encode())
+        self.sendmsg(self.network['proposers'][0], Message.make_submit(v).encode().encode())
 
 class Message():
     SUBMIT = 'SUBMIT'
@@ -272,8 +227,8 @@ class Message():
         return m
 
     @classmethod
-    def make_submit(cls, v):
-        return cls(cls.SUBMIT, [v])
+    def make_submit(cls, v, id=1):
+        return cls(cls.SUBMIT, [v, id])
 
     @classmethod
     def make_phase_1a(cls, c_rnd):
