@@ -1,6 +1,6 @@
 from paxos import Group
 from utils import make_config
-
+import time
 CONFIG_FILE = './config.txt'
 
 # workers = Worker.from_file( l)
@@ -13,7 +13,7 @@ CONFIG_FILE = './config.txt'
 #     'acceptors': ('239.0.0.1', 7000, 10000),
 #     'learners': ('239.0.0.1', 8000, 10)
 # }
-
+#
 # config = make_config(role2ip_port_n)
 
 network = Group.from_config(CONFIG_FILE)

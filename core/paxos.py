@@ -41,7 +41,6 @@ class Group(Thread):
             msg = Message.from_enc(msg.decode())
             [w.on_rcv(msg) for w in self.workers]
 
-
     def run(self):
         self.listen()
 
