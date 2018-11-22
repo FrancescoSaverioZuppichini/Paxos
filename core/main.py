@@ -7,6 +7,7 @@ CONFIG_FILE = './config.txt'
 
 # print(workers)
 
+<<<<<<< Updated upstream
 # role2ip_port_n = {
 #     'clients': ('239.0.0.1', 5000, 1),
 #     'proposers': ('239.0.0.1', 6000, 5),
@@ -15,6 +16,16 @@ CONFIG_FILE = './config.txt'
 # }
 #
 # config = make_config(role2ip_port_n)
+=======
+role2ip_port_n = {
+    'clients': ('239.0.0.1', 5000, 1),
+    'proposers': ('239.0.0.1', 6000, 5),
+    'acceptors': ('239.0.0.1', 7000, 1000),
+    'learners': ('239.0.0.1', 8000, 10)
+}
+
+CONFIG_FILE = make_config(role2ip_port_n)
+>>>>>>> Stashed changes
 
 network = Group.from_config(CONFIG_FILE)
 
