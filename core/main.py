@@ -7,14 +7,15 @@ CONFIG_FILE = './config.txt'
 
 # print(workers)
 
-# role2ip_port_n = {
-#     'clients': ('239.0.0.1', 5000, 1),
-#     'proposers': ('239.0.0.1', 6000, 5),
-#     'acceptors': ('239.0.0.1', 7000, 1000),
-#     'learners': ('239.0.0.1', 8000, 10)
-# }
-#
-# CONFIG_FILE = make_config(role2ip_port_n)
+role2ip_port_n = {
+    'clients': ('239.0.0.1', 5000, 1),
+    'proposers': ('239.0.0.1', 6000, 5),
+    'acceptors': ('239.0.0.1', 7000, 10),
+    'learners': ('239.0.0.1', 8000, 2)
+}
+
+
+CONFIG_FILE = make_config(role2ip_port_n)
 
 network = {'clients': None, 'proposers': None, 'acceptors': None, 'learners': None}
 
@@ -36,5 +37,5 @@ print(network)
 for w in workers:
     w(network)
     w.start()
-
+time.sleep(1)
 workers[0].submit(1)

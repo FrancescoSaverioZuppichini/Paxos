@@ -15,6 +15,7 @@ class Worker(Thread):
         self.make_server()
         self.make_client()
 
+
     def make_server(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, struct.pack('b', 1))
@@ -68,7 +69,7 @@ class Worker(Thread):
         return cls(role, *args, **kwargs)
 
     def __str__(self):
-        return str(self.addr) + ' ' + str(self.id)
+        return str(self.role) + ' ' + str(self.addr) + ' ' + str(self.id)
 
 class Proposer(Worker):
     def __init__(self, *args, **kwargs):
@@ -107,12 +108,12 @@ class Proposer(Worker):
             if True:
                 if msg.phase == Message.PHASE_1B:
                     rnd, v_rnd, v_val = msg.data
-                    loginfo('{} received PHASE_1B with rnd={},v_rnd={}, v_val={}'.format(self, rnd, v_rnd, v_val))
+                    loginfo('{} received PHASE_1B with rnd={},v_rnd={}, v_val={} received={}'.format(self, rnd, v_rnd, v_val, len(self.rcv_phase2b)))
 
                     self.rcv_v_rnd.append(v_rnd)
                     self.rcv_phase1b.append(rnd)
 
-                    if len(self.rcv_phase1b) > self.network['acceptors'][-1] / 2:
+                    if len(self.rcv_phase1b) > self.network['acceptors'][-1] // 2:
                         loginfo('{} quorum={} for PHASE_1B'.format(self, len(self.rcv_phase1b)))
 
                         filtered = filter(lambda x: x == self.c_rnd, self.rcv_phase1b)
@@ -141,7 +142,7 @@ class Proposer(Worker):
 
                 elif msg.phase == Message.PHASE_2B:
                     v_rnd, v_val = msg.data
-                    loginfo('{} received PHASE_2B with v_rnd={}, v_val={}'.format(self, v_rnd, v_val))
+                    loginfo('{} received PHASE_2B with v_rnd={}, v_val={} received={}'.format(self, v_rnd, v_val, len(self.rcv_phase2b)))
 
                     self.rcv_phase2b.append(v_rnd)
 
