@@ -1,6 +1,8 @@
+import pprint
+
 from paxos import Worker
 from utils import make_config, make_network, logger
-import time
+
 CONFIG_FILE = './config.txt'
 
 network = make_network(CONFIG_FILE)
@@ -22,7 +24,7 @@ for role, ((ip, port), n) in network.items():
         w = Worker.from_role(role, ip, port, id, logger=my_logger, loss_prob=0)
         workers.append(w)
 
-print(network)
+pprint.pprint(network)
 
 for w in workers:
     w(network)
