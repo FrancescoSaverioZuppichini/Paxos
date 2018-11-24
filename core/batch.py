@@ -1,30 +1,27 @@
 import sys
 import time
 
-from paxos import Group
+from utils import make_network, loginfo
+from paxos import Worker
 
-role, id, config= sys.argv[1], sys.argv[2], sys.argv[3]
+role, id, config_path = sys.argv[1], sys.argv[2], sys.argv[3]
 
-print(role, id, config)
 
-LOCAL_CONFIG_PATH = 'configs/{}-{}.txt'.format(role, id)
+network = make_network(config_path)
 
-local_config = ''
-#
-# with open(config, 'r') as f:
-#     for line in f.readlines():
-#         role_, _, _= line.strip().split(' ')
-#         if role_ == role_:
-#             local_config += line
-#             break
-#
-# with open(config, 'w') as f:
-#     f.write(local_config)
+(ip, port), n = network[role]
 
-network = Group.from_config(config)
 
-network[role].start()
+w = Worker.from_role(role, ip, port, id)
+
+loginfo('Spawning {}'.format(str(w)))
+
+w(network)
+w.start()
 
 if role == 'clients':
     v = sys.argv[4]
-    network[role][0].submit(v)
+    w.submit(v)
+
+
+# python3 batch.py clients 0 config.txt 2

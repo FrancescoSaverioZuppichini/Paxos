@@ -1,5 +1,5 @@
 from paxos import Worker
-from utils import make_config
+from utils import make_config, make_network
 import time
 CONFIG_FILE = './config.txt'
 
@@ -17,25 +17,22 @@ role2ip_port_n = {
 
 CONFIG_FILE = make_config(role2ip_port_n)
 
-network = {'clients': None, 'proposers': None, 'acceptors': None, 'learners': None}
 
 
+network = make_network(CONFIG_FILE)
 
 workers = []
-with open(CONFIG_FILE, 'r') as f:
-    for line in f.readlines():
-        role, ip, port = line.strip().split(' ')
-        if network[role] == None:
-            network[role] = [(ip, int(port)), 0]
-        network[role][-1] = network[role][-1] + 1
 
-        w = Worker.from_role(role, ip, int(port), network[role][-1])
-
+for role, ((ip, port), n) in network.items():
+    for id in range(n):
+        w = Worker.from_role(role, ip, port, id)
         workers.append(w)
 
+
 print(network)
+
 for w in workers:
     w(network)
     w.start()
-time.sleep(1)
+
 workers[0].submit(1)
