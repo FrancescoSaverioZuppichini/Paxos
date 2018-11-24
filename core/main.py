@@ -1,11 +1,11 @@
 import pprint
 
 from paxos import Worker
-from utils import make_config, make_network, logger
+from utils import make_config, make_network, make_logger
 
-CONFIG_FILE = './config.txt'
+# CONFIG_FILE = './config.txt'
 
-network = make_network(CONFIG_FILE)
+# network = make_network(CONFIG_FILE)
 
 network = {
     'clients': (('239.0.0.1', 5000), 1),
@@ -14,20 +14,11 @@ network = {
     'learners': (('239.0.0.1', 8000), 2)
 }
 
-
-
-my_logger = logger(debug=False)
-workers = []
-
-for role, ((ip, port), n) in network.items():
-    for id in range(n):
-        w = Worker.from_role(role, ip, port, id, logger=my_logger, loss_prob=0)
-        workers.append(w)
+workers = Worker.from_network(network)
 
 pprint.pprint(network)
 
-for w in workers:
-    w(network)
-    w.start()
+[w.start() for w in workers]
+
 
 workers[0].submit(1)

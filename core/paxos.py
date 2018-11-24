@@ -5,6 +5,8 @@ import time
 import struct
 import random
 
+from utils import make_logger
+
 from threading import Thread
 from multiprocessing import Process
 
@@ -15,7 +17,7 @@ class Worker(Thread):
         self.make_server()
         self.make_client()
 
-        self.logger = logger
+        self.logger = make_logger() if logger == None else logger
         self.loss_prob = loss_prob
 
 
@@ -71,6 +73,18 @@ class Worker(Thread):
         elif role == 'clients':
             cls = Client
         return cls(role, *args, **kwargs)
+
+    @staticmethod
+    def from_network(network, logger=None, loss_prob=0):
+        workers = []
+
+        for role, ((ip, port), n) in network.items():
+            for id in range(n):
+                w = Worker.from_role(role, ip, port, id, logger=logger, loss_prob=loss_prob)
+                workers.append(w)
+                w(network)
+
+        return workers
 
     def __str__(self):
         return str(self.role) + ' ' + str(self.addr) + ' ' + str(self.id)
