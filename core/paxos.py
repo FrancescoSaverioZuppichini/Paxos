@@ -3,17 +3,20 @@ import json
 import numpy as np
 import time
 import struct
+import random
 
 from threading import Thread
 from multiprocessing import Process
-from utils import loginfo
 
 class Worker(Thread):
-    def __init__(self, role, ip, port, id=None):
+    def __init__(self, role, ip, port, id=None, logger=None, loss_prob=0):
         super().__init__()
         self.role, self.ip, self.port, self.id = role, ip, port, id
         self.make_server()
         self.make_client()
+
+        self.logger = logger
+        self.loss_prob = loss_prob
 
 
     def make_server(self):
@@ -32,7 +35,7 @@ class Worker(Thread):
     def run(self):
         self.server.bind((self.ip, self.port))
 
-        loginfo('{} listening'.format(self))
+        self.logger('{} listening'.format(self))
         while True:
             msg, address = self.server.recvfrom(1024)
             msg = Message.from_enc(msg.decode())
@@ -50,14 +53,15 @@ class Worker(Thread):
         pass
 
     def sendmsg(self, addr, msg):
-        self.client.sendto(msg, addr)
+        should_send = self.loss_prob <= random.random()
+        if should_send: self.client.sendto(msg.encode().encode(), addr)
+        else: self.logger('{} loss msg={}'.format(self, msg.phase))
 
     def __call__(self, network):
         self.network = network
 
-    @staticmethod
-    def from_role(role, *args, **kwargs):
-        cls = Worker
+    @classmethod
+    def from_role(cls, role, *args, **kwargs):
         if role == 'proposers':
             cls = Proposer
         elif role == 'acceptors':
@@ -93,10 +97,10 @@ class Proposer(Worker):
 
         acceptors = self.network['acceptors'][0]
 
-        loginfo('{} sending PHASE_1A with c_rnd={}'.format(self, self.c_rnd))
+        self.logger('{} sending PHASE_1A with c_rnd={}'.format(self, self.c_rnd))
 
         self.sendmsg(acceptors,
-                     Message.make_phase_1a(self.c_rnd).encode().encode())
+                     Message.make_phase_1a(self.c_rnd))
 
     def on_rcv(self, msg):
         if msg.phase == Message.SUBMIT:
@@ -107,13 +111,13 @@ class Proposer(Worker):
 
             if msg.phase == Message.PHASE_1B:
                 rnd, v_rnd, v_val = msg.data
-                loginfo('{} received PHASE_1B with rnd={},v_rnd={}, v_val={} received={}'.format(self, rnd, v_rnd, v_val, len(self.rcv_phase2b)))
+                self.logger('{} received PHASE_1B with rnd={},v_rnd={}, v_val={} received={}'.format(self, rnd, v_rnd, v_val, len(self.rcv_phase2b)))
 
                 self.rcv_v_rnd.append(v_rnd)
                 self.rcv_phase1b.append(rnd)
 
-                if len(self.rcv_phase1b) >= self.network['acceptors'][-1] // 2:
-                    loginfo('{} quorum={} for PHASE_1B'.format(self, len(self.rcv_phase1b)))
+                if len(self.rcv_phase1b) > self.network['acceptors'][-1] // 2:
+                    self.logger('{} quorum={} for PHASE_1B'.format(self, len(self.rcv_phase1b)))
 
                     filtered = filter(lambda x: x == self.c_rnd, self.rcv_phase1b)
 
@@ -131,24 +135,24 @@ class Proposer(Worker):
 
                         self.c_val = c_val
 
-                        loginfo('{} sending PHASE_2A with c_rnd={} c_val'.format(self, self.c_rnd, self.c_val))
+                        self.logger('{} sending PHASE_2A with c_rnd={} c_val'.format(self, self.c_rnd, self.c_val))
 
                         acceptors = self.network['acceptors'][0]
 
                         self.sendmsg(acceptors,
-                                     Message.make_phase_2a(self.c_rnd, self.c_val).encode().encode())
+                                     Message.make_phase_2a(self.c_rnd, self.c_val))
 
                     # prevent others quorum
                     self.rcv_phase1b = []
 
             elif msg.phase == Message.PHASE_2B:
                 v_rnd, v_val = msg.data
-                loginfo('{} received PHASE_2B with v_rnd={}, v_val={} received={}'.format(self, v_rnd, v_val, len(self.rcv_phase2b)))
+                self.logger('{} received PHASE_2B with v_rnd={}, v_val={} received={}'.format(self, v_rnd, v_val, len(self.rcv_phase2b)))
 
                 self.rcv_phase2b.append(v_rnd)
 
-                if len(self.rcv_phase2b) >= self.network['acceptors'][-1] // 2:
-                    loginfo('{} quorum={} for PHASE_2B'.format(self, len(self.rcv_phase2b)))
+                if len(self.rcv_phase2b) > self.network['acceptors'][-1] // 2:
+                    self.logger('{} quorum={} for PHASE_2B'.format(self, len(self.rcv_phase2b)))
                     # quorum
                     filtered = filter(lambda x: x == self.c_rnd, self.rcv_phase2b)
 
@@ -156,9 +160,9 @@ class Proposer(Worker):
                         # all values were c-rnd
                         learners = self.network['learners'][0]
 
-                        loginfo('{} sending DECIDE with v={}'.format(self, self.v))
+                        self.logger('{} sending DECIDE with v={}'.format(self, self.v))
 
-                        self.sendmsg(learners, Message.make_decide(self.v).encode().encode())
+                        self.sendmsg(learners, Message.make_decide(self.v))
 
                     # prevent others quorum
                     self.rcv_phase2b = []
@@ -174,31 +178,31 @@ class Acceptor(Worker):
         if msg.phase == Message.PHASE_1A:
             c_rnd = msg.data[0]
 
-            loginfo('{} received PHASE_1A with c-rnd={}'.format(self, c_rnd))
+            self.logger('{} received PHASE_1A with c-rnd={}'.format(self, c_rnd))
 
             if c_rnd > self.rnd:
                 self.rnd = c_rnd
                 # TODO should get the correct proposer  maybe add 'from' in msg?
                 proposers = self.network['proposers'][0]
 
-                loginfo('{} sending PHASE_1B with rnd={} v_rnd={} v_val={}'.format(self, self.rnd, self.v_rnd, self.v_val))
+                self.logger('{} sending PHASE_1B with rnd={} v_rnd={} v_val={}'.format(self, self.rnd, self.v_rnd, self.v_val))
 
                 self.sendmsg(proposers,
-                             Message.make_phase_1b(self.rnd, self.v_rnd, self.v_val).encode().encode())
+                             Message.make_phase_1b(self.rnd, self.v_rnd, self.v_val))
 
         elif msg.phase == Message.PHASE_2A:
             c_rnd, c_val = msg.data
             self.v_rnd = c_rnd
             self.v_val = c_val
 
-            loginfo('{} received PHASE_2A with c-rnd={}, c_val={}'.format(self, c_rnd, c_val))
+            self.logger('{} received PHASE_2A with c-rnd={}, c_val={}'.format(self, c_rnd, c_val))
 
             proposers = self.network['proposers'][0]
 
-            loginfo('{} sending PHASE_2B with v_rnd={} v_val={}'.format(self, self.v_rnd, self.v_val))
+            self.logger('{} sending PHASE_2B with v_rnd={} v_val={}'.format(self, self.v_rnd, self.v_val))
 
             self.sendmsg(proposers,
-                         Message.make_phase_2b(self.v_rnd, self.v_val).encode().encode())
+                         Message.make_phase_2b(self.v_rnd, self.v_val))
 
 
 class Learner(Worker):
@@ -207,12 +211,14 @@ class Learner(Worker):
         if msg.phase == Message.DECIDE:
             v_val = msg.data[0]
 
-            loginfo('{} DECIDE v_val={}'.format(self, v_val))
+            self.logger('{} DECIDE v_val={}'.format(self, v_val))
+
+            print('value {}'.format(v_val))
 
 class Client(Worker):
     def submit(self, v):
-        loginfo('{} sending SUBMIT with val={}'.format(self, v))
-        self.sendmsg(self.network['proposers'][0], Message.make_submit(v).encode().encode())
+        self.logger('{} sending SUBMIT with val={}'.format(self, v))
+        self.sendmsg(self.network['proposers'][0], Message.make_submit(v))
 
 class Message():
     SUBMIT = 'SUBMIT'

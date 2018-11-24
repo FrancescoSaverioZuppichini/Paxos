@@ -1,8 +1,18 @@
 import time
 import tempfile
 
-def loginfo(info):
-    print('[{:.6f}]:{}'.format(time.time(), info))
+
+global DEBUG
+
+# DEBUG = True
+
+def logger(debug=True):
+
+    def loginfo(info):
+        if debug:
+            print('[{:.6f}]:{}'.format(time.time(), info))
+
+    return loginfo
 
 
 def make_config(role2ip_port_n):
