@@ -30,7 +30,7 @@ logger = make_logger(debug=False)
 workers = Worker.from_network(network, logger=logger)
 
 pprint.pprint(network)
-# start the server in each workers. Each worker spawns a thread to listn for incoming msgs.
+# start the server in each worker. Each worker spawns a thread to listen for incoming msgs.
 [w.start() for w in workers]
 # get the client
 workers[0].submit('Hello world!\n')
