@@ -5,13 +5,28 @@ import time
 import struct
 import random
 
-from utils import make_logger
+from utils import make_logger, Config
 
 from threading import Thread
-from multiprocessing import Process
 
 class Worker(Thread):
+    """
+    Basic class to handle all asynchronous operations. It provides a simple
+    interface to communicate with other group by creating a 'client' socket and
+    to listen to incoming messages by creating a 'server' socket. In order to avoid
+    blocking this class implement `threading.Thread`. When calling the `.start` methods
+    the server socket will start to listen.
+    """
     def __init__(self, role, ip, port, id=None, logger=None, loss_prob=0):
+        """
+
+        :param role: 'clients', 'proposers', 'acceptors' and 'learners'
+        :param ip: The current ip
+        :param port: The current port
+        :param id: The current id of the Worker
+        :param logger: A function that prints the input
+        :param loss_prob: (0,1) The probability for a message to be lost
+        """
         super().__init__()
         self.role, self.ip, self.port, self.id = role, ip, port, id
         self.make_server()
@@ -20,21 +35,41 @@ class Worker(Thread):
         self.logger = make_logger() if logger == None else logger
         self.loss_prob = loss_prob
 
+    def make_client(self):
+        """
+        Create a socket to send messages to other groups
+        :return:
+        """
+        self.client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.client.settimeout(0.2)
+        self.client.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, struct.pack('b', 1))
+        self.client.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.client.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP,
+                               struct.pack('4sL', socket.inet_aton(self.ip),
+                                           socket.INADDR_ANY))
 
     def make_server(self):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, struct.pack('b', 1))
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP,
+        """
+        Create a multicast socket to listen to incoming group messages
+        :return:
+        """
+        self.server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.server.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, struct.pack('b', 1))
+        self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.server.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP,
                         struct.pack('4sL', socket.inet_aton(self.ip),
                                     socket.INADDR_ANY))
-        self.server = sock
-
     @property
     def addr(self):
         return (self.ip, self.port)
 
     def run(self):
+        """
+        Overrides `threading.Thread` `run`. This will bind the server socket
+        to the current address and start listening. When a messages arrives
+        it is decoded and the `on_rcv` function it is called.
+        :return:
+        """
         self.server.bind((self.ip, self.port))
 
         self.logger('{} listening'.format(self))
@@ -43,18 +78,23 @@ class Worker(Thread):
             msg = Message.from_enc(msg.decode())
             self.on_rcv(msg)
 
-    def make_client(self):
-        self.client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.client.settimeout(0.2)
-        self.client.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, struct.pack('b', 1))
-        self.client.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.client.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP,
-                               struct.pack('4sL', socket.inet_aton(self.ip),
-                                           socket.INADDR_ANY))
     def on_rcv(self, msg):
-        pass
+        """
+        This function must be implemented to correctly switch behavior based on
+        the message
+        :param msg: A Message instance
+        :return:
+        """
+        raise NotImplementedError
 
     def sendmsg(self, addr, msg):
+        """
+        This function uses the 'client' socket to send a messages to a group.
+        If loss_prob is > 0 then the message can be lost.
+        :param addr:
+        :param msg:
+        :return:
+        """
         should_send = self.loss_prob <= random.random()
         if should_send: self.client.sendto(msg.encode().encode(), addr)
         else: self.logger('{} loss msg={}'.format(self, msg.phase))
@@ -62,8 +102,17 @@ class Worker(Thread):
     def __call__(self, network):
         self.network = network
 
-    @classmethod
-    def from_role(cls, role, *args, **kwargs):
+    @staticmethod
+    def from_role(role, *args, **kwargs):
+        """
+        Factory method to create the correct `Worker` instance based
+        on the role
+        :param role: 'clients', 'proposers', 'acceptors' and 'learners'
+        :param args:
+        :param kwargs:
+        :return:
+        """
+        cls = Worker
         if role == 'proposers':
             cls = Proposer
         elif role == 'acceptors':
@@ -76,6 +125,13 @@ class Worker(Thread):
 
     @staticmethod
     def from_network(network, logger=None, loss_prob=0):
+        """
+        Factory method to create multiples workers based on the network dict.
+        :param network:
+        :param logger:
+        :param loss_prob:
+        :return:
+        """
         workers = []
 
         for role, ((ip, port), n) in network.items():
@@ -130,7 +186,8 @@ class Proposer(Worker):
                 self.rcv_v_rnd.append(v_rnd)
                 self.rcv_phase1b.append(rnd)
 
-                if len(self.rcv_phase1b) > self.network['acceptors'][-1] // 2:
+                quorum_n =  max(Config.MIN_ACCEPTORS_N, self.network['acceptors'][-1]) // 2
+                if len(self.rcv_phase1b) > quorum_n:
                     self.logger('{} quorum={} for PHASE_1B'.format(self, len(self.rcv_phase1b)))
 
                     filtered = filter(lambda x: x == self.c_rnd, self.rcv_phase1b)
@@ -164,8 +221,10 @@ class Proposer(Worker):
                 self.logger('{} received PHASE_2B with v_rnd={}, v_val={} received={}'.format(self, v_rnd, v_val, len(self.rcv_phase2b)))
 
                 self.rcv_phase2b.append(v_rnd)
+                quorum_n =  max(Config.MIN_ACCEPTORS_N, self.network['acceptors'][-1]) // 2
 
-                if len(self.rcv_phase2b) > self.network['acceptors'][-1] // 2:
+
+                if len(self.rcv_phase2b) > quorum_n:
                     self.logger('{} quorum={} for PHASE_2B'.format(self, len(self.rcv_phase2b)))
                     # quorum
                     filtered = filter(lambda x: x == self.c_rnd, self.rcv_phase2b)

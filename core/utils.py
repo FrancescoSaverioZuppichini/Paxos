@@ -1,9 +1,7 @@
 import time
-import tempfile
 
-global DEBUG
-
-# DEBUG = True
+class Config:
+    MIN_ACCEPTORS_N = 3
 
 def make_logger(debug=True):
 
