@@ -11,8 +11,8 @@ from utils import make_config, make_network, make_logger
 network = {
     'clients': (('239.0.0.1', 5000), 1),
     'proposers': (('239.0.0.1', 6000), 1),
-    'acceptors': (('239.0.0.1', 7000), 5),
-    'learners': (('239.0.0.1', 8000), 2)
+    'acceptors': (('239.0.0.1', 7000), 20),
+    'learners': (('239.0.0.1', 8000), 1)
 }
 # optionally create a logger function. e.g. lambda x: print(x)
 logger = make_logger(debug=True)
