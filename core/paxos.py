@@ -175,7 +175,7 @@ class Proposer(Worker):
     def on_rcv(self, msg):
         if msg.phase == Message.SUBMIT:
             v, self.proposer_id = msg.data
-            self.propose(v)
+            if int(self.id) == int(self.proposer_id): self.propose(v)
 
         if int(self.id) == int(self.proposer_id):
 
