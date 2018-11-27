@@ -175,7 +175,7 @@ class Proposer(Worker):
     def on_rcv(self, msg):
         if msg.phase == Message.SUBMIT:
             v, self.proposer_id = msg.data
-            if int(self.id) == int(self.proposer_id): self.propose(v)
+            self.propose(v)
 
         if int(self.id) == int(self.proposer_id):
 
@@ -188,28 +188,29 @@ class Proposer(Worker):
 
                 quorum_n =  max(Config.MIN_ACCEPTORS_N, self.network['acceptors'][-1]) // 2
 
-                if self.rcv_phase1b.count(self.c_rnd) > quorum_n:
+                if len(self.rcv_phase1b) > quorum_n:
                     self.logger('{} quorum={} for PHASE_1B'.format(self, len(self.rcv_phase1b)))
 
-                    if v_rnd not in self.v_rnd2v_val: self.v_rnd2v_val[v_rnd] = []
+                    if self.rcv_phase1b.count(self.c_rnd) == len(self.rcv_phase1b):
+                        if v_rnd not in self.v_rnd2v_val: self.v_rnd2v_val[v_rnd] = []
 
-                    self.v_rnd2v_val[v_rnd].append(v_val)
+                        self.v_rnd2v_val[v_rnd].append(v_val)
 
-                    k = np.max(self.rcv_v_rnd)  # largest v-rnd velued received
-                    V = list(set(self.v_rnd2v_val[k]))  # set of (v-rnd, v-val) received with v-rnd=k
+                        k = np.max(self.rcv_v_rnd)  # largest v-rnd velued received
+                        V = list(set(self.v_rnd2v_val[k]))  # set of (v-rnd, v-val) received with v-rnd=k
 
-                    c_val = V[0]  # the only v-val in V
+                        c_val = V[0]  # the only v-val in V
 
-                    if k == 0: c_val = self.v
+                        if k == 0: c_val = self.v
 
-                    self.c_val = c_val
+                        self.c_val = c_val
 
-                    self.logger('{} sending PHASE_2A with c_rnd={} c_val'.format(self, self.c_rnd, self.c_val))
+                        self.logger('{} sending PHASE_2A with c_rnd={} c_val'.format(self, self.c_rnd, self.c_val))
 
-                    acceptors = self.network['acceptors'][0]
+                        acceptors = self.network['acceptors'][0]
 
-                    self.sendmsg(acceptors,
-                                 Message.make_phase_2a(self.c_rnd, self.c_val))
+                        self.sendmsg(acceptors,
+                                     Message.make_phase_2a(self.c_rnd, self.c_val))
 
                     # prevent others quorum
                     self.rcv_phase1b = []
@@ -222,14 +223,16 @@ class Proposer(Worker):
                 quorum_n =  max(Config.MIN_ACCEPTORS_N, self.network['acceptors'][-1]) // 2
 
 
-                if self.rcv_phase2b.count(self.c_rnd) > quorum_n:
+                if len(self.rcv_phase2b) > quorum_n:
                     self.logger('{} quorum={} for PHASE_2B'.format(self, len(self.rcv_phase2b)))
                     # quorum
-                    learners = self.network['learners'][0]
+                    if self.rcv_phase2b.count(self.c_rnd) == len(self.rcv_phase2b):
+                        # all values were c-rnd
+                        learners = self.network['learners'][0]
 
-                    self.logger('{} sending DECIDE with v={}'.format(self, self.v))
+                        self.logger('{} sending DECIDE with v={}'.format(self, self.v))
 
-                    self.sendmsg(learners, Message.make_decide(self.v))
+                        self.sendmsg(learners, Message.make_decide(self.v))
 
                     # prevent others quorum
                     self.rcv_phase2b = []
@@ -249,7 +252,7 @@ class Acceptor(Worker):
 
             if c_rnd > self.rnd:
                 self.rnd = c_rnd
-
+                # TODO should get the correct proposer  maybe add 'from' in msg?
                 proposers = self.network['proposers'][0]
 
                 self.logger('{} sending PHASE_1B with rnd={} v_rnd={} v_val={}'.format(self, self.rnd, self.v_rnd, self.v_val))
