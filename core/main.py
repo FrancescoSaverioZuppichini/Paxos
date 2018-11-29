@@ -2,7 +2,7 @@ import pprint
 
 from paxos import Worker
 from utils import make_config, make_network, make_logger
-
+import time
 # CONFIG_FILE = './config.txt'
 
 # network = make_network(CONFIG_FILE)
@@ -22,5 +22,9 @@ workers = Worker.from_network(network, logger=logger)
 pprint.pprint(network)
 # start the server in each workers
 [w.start() for w in workers]
+
+time.sleep(0.5)
 # get the client
-workers[0].submit(1)
+workers[0].submit('Hello world!')
+workers[0].submit('Hello world!')
+

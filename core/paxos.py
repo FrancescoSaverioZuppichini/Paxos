@@ -154,9 +154,8 @@ class Worker(Thread):
     def __str__(self):
         return str(self.role) + ' ' + str(self.addr) + ' ' + str(self.id)
 
-class Proposer(Worker):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+class ProposerState:
+    def __init__(self):
         self.c_rnd = 0
         self.c_val = 0
 
@@ -164,140 +163,166 @@ class Proposer(Worker):
         self.v_rnd2v_val = {}
 
         self.v = 0
+        self.proposer_id = None
+
+        self.rcv_phase1b = []
+        self.rcv_phase2b = []
+
+class Proposer(Worker):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def make_state(self):
-        return { 'c_rnd' : 0 ,
-                 'c_val' : 0,
-                 
-                 }
+        return ProposerState()
 
     def init_memory(self):
         self.rcv_phase1b = []
         self.rcv_phase2b = []
 
-    def propose(self, v):
-        self.v = v
-        self.c_rnd += 1
-        self.init_memory()
+    def propose(self, state, msg):
+        v, proposer_id = msg.data
+
+        state.v = v
+        state.c_rnd += 1
+        state.proposer_id = proposer_id
 
         acceptors = self.network['acceptors'][0]
 
-        self.logger('{} sending PHASE_1A with c_rnd={}'.format(self, self.c_rnd))
+        self.logger('[{}] {} sending PHASE_1A with c_rnd={}'.format(msg.instance, self, state.c_rnd))
 
         self.sendmsg(acceptors,
-                     Message.make_phase_1a(self.c_rnd))
+                     Message.make_phase_1a(state.c_rnd, msg.instance))
 
     def on_rcv(self, msg):
-        if msg.phase == Message.SUBMIT:
-            v, self.proposer_id = msg.data
-            self.propose(v)
+        instance_id = msg.instance
+        state = self.get_state(instance_id)
 
-        if int(self.id) == int(self.proposer_id):
+        if msg.phase == Message.SUBMIT:
+            self.propose(state, msg)
+
+        if int(self.id) == int(state.proposer_id):
 
             if msg.phase == Message.PHASE_1B:
                 rnd, v_rnd, v_val = msg.data
-                self.logger('{} received PHASE_1B with rnd={},v_rnd={}, v_val={} received={}'.format(self, rnd, v_rnd, v_val, len(self.rcv_phase2b)))
+                self.logger('[{}] {} received PHASE_1B with rnd={},v_rnd={}, v_val={} received={}'.format(msg.instance, self, rnd, v_rnd, v_val, len(state.rcv_phase2b)))
 
-                self.rcv_v_rnd.append(v_rnd)
-                self.rcv_phase1b.append(rnd)
+                state.rcv_v_rnd.append(v_rnd)
+                state.rcv_phase1b.append(rnd)
 
                 quorum_n =  max(Config.MIN_ACCEPTORS_N, self.network['acceptors'][-1]) // 2
 
-                if len(self.rcv_phase1b) > quorum_n:
-                    self.logger('{} quorum={} for PHASE_1B'.format(self, len(self.rcv_phase1b)))
+                if len(state.rcv_phase1b) > quorum_n:
+                    self.logger('[{}] {} quorum={} for PHASE_1B'.format(msg.instance, self, len(state.rcv_phase1b)))
 
-                    if self.rcv_phase1b.count(self.c_rnd) == len(self.rcv_phase1b):
-                        if v_rnd not in self.v_rnd2v_val: self.v_rnd2v_val[v_rnd] = []
+                    if state.rcv_phase1b.count(state.c_rnd) == len(state.rcv_phase1b):
+                        if v_rnd not in state.v_rnd2v_val: state.v_rnd2v_val[v_rnd] = []
 
-                        self.v_rnd2v_val[v_rnd].append(v_val)
+                        state.v_rnd2v_val[v_rnd].append(v_val)
 
-                        k = np.max(self.rcv_v_rnd)  # largest v-rnd velued received
-                        V = list(set(self.v_rnd2v_val[k]))  # set of (v-rnd, v-val) received with v-rnd=k
+                        k = np.max(state.rcv_v_rnd)  # largest v-rnd velued received
+                        V = list(set(state.v_rnd2v_val[k]))  # set of (v-rnd, v-val) received with v-rnd=k
 
                         c_val = V[0]  # the only v-val in V
 
-                        if k == 0: c_val = self.v
+                        if k == 0: c_val = state.v
 
-                        self.c_val = c_val
+                        state.c_val = c_val
 
-                        self.logger('{} sending PHASE_2A with c_rnd={} c_val'.format(self, self.c_rnd, self.c_val))
+                        self.logger('[{}] {} sending PHASE_2A with c_rnd={} c_val={}'.format(msg.instance, self, state.c_rnd, state.c_val))
 
                         acceptors = self.network['acceptors'][0]
 
                         self.sendmsg(acceptors,
-                                     Message.make_phase_2a(self.c_rnd, self.c_val))
+                                     Message.make_phase_2a(state.c_rnd, state.c_val, instance_id))
 
                     # prevent others quorum
-                    self.rcv_phase1b = []
+                    state.rcv_phase1b = []
 
             elif msg.phase == Message.PHASE_2B:
                 v_rnd, v_val = msg.data
-                self.logger('{} received PHASE_2B with v_rnd={}, v_val={} received={}'.format(self, v_rnd, v_val, len(self.rcv_phase2b)))
+                self.logger('[{}] {} received PHASE_2B with v_rnd={}, v_val={} received={}'.format(msg.instance, self, v_rnd, v_val, len(state.rcv_phase2b)))
 
-                self.rcv_phase2b.append(v_rnd)
+                state.rcv_phase2b.append(v_rnd)
                 quorum_n =  max(Config.MIN_ACCEPTORS_N, self.network['acceptors'][-1]) // 2
 
-
-                if len(self.rcv_phase2b) > quorum_n:
-                    self.logger('{} quorum={} for PHASE_2B'.format(self, len(self.rcv_phase2b)))
+                if len(state.rcv_phase2b) > quorum_n:
+                    self.logger('[{}] {} quorum={} for PHASE_2B'.format(msg.instance, self, len(state.rcv_phase2b)))
                     # quorum
-                    if self.rcv_phase2b.count(self.c_rnd) == len(self.rcv_phase2b):
+                    if state.rcv_phase2b.count(state.c_rnd) == len(state.rcv_phase2b):
                         # all values were c-rnd
                         learners = self.network['learners'][0]
 
-                        self.logger('{} sending DECIDE with v={}'.format(self, self.v))
+                        self.logger('[{}] {} sending DECIDE with v={}'.format(msg.instance, self, state.v))
 
-                        self.sendmsg(learners, Message.make_decide(self.v))
+                        self.sendmsg(learners, Message.make_decide(state.v, instance_id))
 
                     # prevent others quorum
-                    self.rcv_phase2b = []
+                    state.rcv_phase2b = []
 
-class Acceptor(Worker):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+class AcceptorState:
+    def __init__(self):
         self.rnd = 0
         self.v_rnd = 0
         self.v_val = 0
 
+class Acceptor(Worker):
+
+    def make_state(self):
+        return AcceptorState()
+
     def on_rcv(self, msg):
+        instance_id = msg.instance
+        state = self.get_state(instance_id)
+
         if msg.phase == Message.PHASE_1A:
             c_rnd = msg.data[0]
 
-            self.logger('{} received PHASE_1A with c-rnd={}'.format(self, c_rnd))
+            self.logger('[{}] {} received PHASE_1A with c-rnd={}'.format(msg.instance, self, c_rnd))
 
-            if c_rnd > self.rnd:
-                self.rnd = c_rnd
+            if c_rnd > state.rnd:
+                state.rnd = c_rnd
                 # TODO should get the correct proposer  maybe add 'from' in msg?
                 proposers = self.network['proposers'][0]
 
-                self.logger('{} sending PHASE_1B with rnd={} v_rnd={} v_val={}'.format(self, self.rnd, self.v_rnd, self.v_val))
+                self.logger('[{}] {} sending PHASE_1B with rnd={} v_rnd={} v_val={}'.format(msg.instance, self, state.rnd, state.v_rnd, state.v_val))
 
                 self.sendmsg(proposers,
-                             Message.make_phase_1b(self.rnd, self.v_rnd, self.v_val))
+                             Message.make_phase_1b(state.rnd, state.v_rnd, state.v_val, instance_id))
 
         elif msg.phase == Message.PHASE_2A:
             c_rnd, c_val = msg.data
-            self.v_rnd = c_rnd
-            self.v_val = c_val
+            state.v_rnd = c_rnd
+            state.v_val = c_val
 
-            self.logger('{} received PHASE_2A with c-rnd={}, c_val={}'.format(self, c_rnd, c_val))
+            self.logger('[{}] {} received PHASE_2A with c-rnd={}, c_val={}'.format(msg.instance, self, c_rnd, c_val))
 
             proposers = self.network['proposers'][0]
 
-            self.logger('{} sending PHASE_2B with v_rnd={} v_val={}'.format(self, self.v_rnd, self.v_val))
+            self.logger('[{}] {} sending PHASE_2B with v_rnd={} v_val={}'.format(msg.instance, self, state.v_rnd, state.v_val))
 
             self.sendmsg(proposers,
-                         Message.make_phase_2b(self.v_rnd, self.v_val))
+                         Message.make_phase_2b(state.v_rnd, state.v_val, instance_id))
+
+class LearnerState:
+    def __init__(self):
+        self.v = None
+
 
 class Learner(Worker):
 
+    def make_state(self):
+        return LearnerState()
+
     def on_rcv(self, msg):
+        instance_id = msg.instance
+        state = self.get_state(instance_id)
+
         if msg.phase == Message.DECIDE:
             v_val = msg.data[0]
+            state.v = v_val
+            self.logger('[{}] {} DECIDE v_val={}'.format(msg.instance, self, v_val))
 
-            self.logger('{} DECIDE v_val={}'.format(self, v_val))
-
-            print('value {}'.format(v_val))
+            print(v_val)
 
 class Client(Worker):
     def __init__(self, *args, **kwargs):
@@ -305,8 +330,9 @@ class Client(Worker):
         self.last = 0
 
     def submit(self, v):
-        self.logger('{} sending SUBMIT with val={}'.format(self, v))
-        self.sendmsg(self.network['proposers'][0], Message.make_submit(v, instance=self.last))
+        msg = Message.make_submit(v, instance=self.last)
+        self.logger('[{}] {} sending SUBMIT with val={}'.format(self, msg.instance, v))
+        self.sendmsg(self.network['proposers'][0], msg)
         self.last += 1
 
 class Message():
