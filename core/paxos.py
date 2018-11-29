@@ -34,6 +34,7 @@ class Worker(Thread):
 
         self.logger = make_logger() if logger == None else logger
         self.loss_prob = loss_prob
+        self.state = {}
 
     def make_client(self):
         """
@@ -86,6 +87,14 @@ class Worker(Thread):
         :return:
         """
         raise NotImplementedError
+
+    def get_state(self, instance_id):
+        if instance_id not in self.state:
+            self.state[instance_id] = self.make_state()
+        return self.state[instance_id]
+
+    def make_state(self):
+        return {}
 
     def sendmsg(self, addr, msg):
         """
@@ -155,6 +164,12 @@ class Proposer(Worker):
         self.v_rnd2v_val = {}
 
         self.v = 0
+
+    def make_state(self):
+        return { 'c_rnd' : 0 ,
+                 'c_val' : 0,
+                 
+                 }
 
     def init_memory(self):
         self.rcv_phase1b = []
@@ -274,7 +289,6 @@ class Acceptor(Worker):
             self.sendmsg(proposers,
                          Message.make_phase_2b(self.v_rnd, self.v_val))
 
-
 class Learner(Worker):
 
     def on_rcv(self, msg):
@@ -286,9 +300,14 @@ class Learner(Worker):
             print('value {}'.format(v_val))
 
 class Client(Worker):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.last = 0
+
     def submit(self, v):
         self.logger('{} sending SUBMIT with val={}'.format(self, v))
-        self.sendmsg(self.network['proposers'][0], Message.make_submit(v))
+        self.sendmsg(self.network['proposers'][0], Message.make_submit(v, instance=self.last))
+        self.last += 1
 
 class Message():
     SUBMIT = 'SUBMIT'
@@ -298,10 +317,11 @@ class Message():
     PHASE_2B = 'PHASE_2B'
     DECIDE = 'DECIDE'
 
-    def __init__(self, phase, data):
+    def __init__(self, phase, data, instance):
         super().__init__()
         self.phase = phase
         self.data = data
+        self.instance = instance
 
     def encode(self):
         return json.dumps(self.__dict__)
@@ -309,29 +329,29 @@ class Message():
     @classmethod
     def from_enc(self, enc):
         dec = json.loads(enc)
-        m = self(dec['phase'], dec['data'])
+        m = self(dec['phase'], dec['data'], dec['instance'])
         return m
 
     @classmethod
-    def make_submit(cls, v, id=0):
-        return cls(cls.SUBMIT, [v, id])
+    def make_submit(cls, v, id=0, *args, **kwargs):
+        return cls(cls.SUBMIT, [v, id],  *args, **kwargs)
 
     @classmethod
-    def make_phase_1a(cls, c_rnd):
-        return cls(cls.PHASE_1A, [c_rnd])
+    def make_phase_1a(cls, c_rnd,  *args, **kwargs):
+        return cls(cls.PHASE_1A, [c_rnd],  *args, **kwargs)
 
     @classmethod
-    def make_phase_1b(cls, rnd, v_rnd, v_val):
-        return cls(cls.PHASE_1B, [rnd, v_rnd, v_val])
+    def make_phase_1b(cls, rnd, v_rnd, v_val,  *args, **kwargs):
+        return cls(cls.PHASE_1B, [rnd, v_rnd, v_val],  *args, **kwargs)
 
     @classmethod
-    def make_phase_2a(cls, c_rnd, c_val):
-        return cls(cls.PHASE_2A, [c_rnd, c_val])
+    def make_phase_2a(cls, c_rnd, c_val,  *args, **kwargs):
+        return cls(cls.PHASE_2A, [c_rnd, c_val],  *args, **kwargs)
 
     @classmethod
-    def make_phase_2b(cls, v_rnd, v_val):
-        return cls(cls.PHASE_2B, [v_rnd, v_val])
+    def make_phase_2b(cls, v_rnd, v_val,  *args, **kwargs):
+        return cls(cls.PHASE_2B, [v_rnd, v_val],  *args, **kwargs)
 
     @classmethod
-    def make_decide(cls, v_val):
-        return cls(cls.DECIDE, [v_val])
+    def make_decide(cls, v_val,  *args, **kwargs):
+        return cls(cls.DECIDE, [v_val],  *args, **kwargs)
