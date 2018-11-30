@@ -8,6 +8,7 @@ import random
 from utils import make_logger, Config
 
 from threading import Thread
+from threading import Timer
 
 class Worker(Thread):
     """
@@ -17,7 +18,7 @@ class Worker(Thread):
     blocking this class implement `threading.Thread`. When calling the `.start` methods
     the server socket will start to listen.
     """
-    def __init__(self, role, ip, port, id=None, logger=None, loss_prob=0):
+    def __init__(self, role, ip, port, id=None, logger=None, loss_prob=0, network=None):
         """
 
         :param role: 'clients', 'proposers', 'acceptors' and 'learners'
@@ -34,7 +35,9 @@ class Worker(Thread):
 
         self.logger = make_logger() if logger == None else logger
         self.loss_prob = loss_prob
+        self.network = network
         self.state = {}
+        self.current_msg = None
 
     def make_client(self):
         """
@@ -77,6 +80,7 @@ class Worker(Thread):
         while True:
             msg, address = self.server.recvfrom(1024)
             msg = Message.from_enc(msg.decode())
+            self.current_msg = msg
             self.on_rcv(msg)
 
     def on_rcv(self, msg):
@@ -147,14 +151,14 @@ class Worker(Thread):
 
         for role, ((ip, port), n) in network.items():
             for id in range(n):
-                w = Worker.from_role(role, ip, port, id, logger=logger, loss_prob=loss_prob)
+                w = Worker.from_role(role, ip, port, id, logger=logger, loss_prob=loss_prob, network=network)
                 workers.append(w)
-                w(network)
 
         return workers
 
     def __str__(self):
         return str(self.role) + ' ' + str(self.addr) + ' ' + str(self.id)
+
 
 class ProposerState:
     def __init__(self):
@@ -165,14 +169,47 @@ class ProposerState:
         self.v_rnd2v_val = {}
 
         self.v = 0
-        self.proposer_id = None
+        self.leader_id = None
 
         self.rcv_phase1b = []
         self.rcv_phase2b = []
 
+        self.last_rcv_ping_from_leader = None
+
 class Proposer(Worker):
+    PING_RATE_S = 2
+    LEADER_WAIT_S = 3
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        self.ping_proposers_t = Thread(target=self.ping_proposers)
+        self.monitor_leader_t = Thread(target=self.monitor_leader)
+
+        self.ping_proposers_t.daemon = True
+        self.monitor_leader_t.daemon = True
+
+    def ping_proposers(self):
+        while True:
+            print('.', end='')
+            time.sleep(self.PING_RATE_S)
+            if self.current_msg != None: self.sendmsg(self.network['proposers'][0], Message.ping_from_leader(self.current_msg.instance))
+
+    def monitor_leader(self):
+        is_leader_dead = False
+
+        while True:
+            if self.current_msg != None:
+                state = self.get_state(self.current_msg.instance)
+                if state.last_rcv_ping_from_leader != None:
+                    now = time.time()
+                    elapsed = now - state.last_rcv_ping_from_leader
+                    if elapsed > self.LEADER_WAIT_S and not is_leader_dead:
+                        print('Leader could be dead')
+                        is_leader_dead = True
+
+    def run(self):
+        self.monitor_leader_t.start()
+        super().run()
 
     def make_state(self):
         return ProposerState()
@@ -182,18 +219,22 @@ class Proposer(Worker):
         self.rcv_phase2b = []
 
     def propose(self, state, msg):
-        v, proposer_id = msg.data
+        v, leader_id = msg.data
 
         state.v = v
         state.c_rnd += 1
-        state.proposer_id = proposer_id
+        state.leader_id = leader_id
 
-        acceptors = self.network['acceptors'][0]
+        if int(self.id) == int(state.leader_id):
 
-        self.logger('[{}] {} sending PHASE_1A with c_rnd={}'.format(msg.instance, self, state.c_rnd))
+            acceptors = self.network['acceptors'][0]
 
-        self.sendmsg(acceptors,
-                     Message.make_phase_1a(state.c_rnd, msg.instance))
+            self.logger('[{}] {} sending PHASE_1A with c_rnd={}'.format(msg.instance, self, state.c_rnd))
+
+            self.sendmsg(acceptors,
+                         Message.make_phase_1a(state.c_rnd, msg.instance))
+
+            if not self.ping_proposers_t.is_alive(): self.ping_proposers_t.start()
 
     def on_rcv(self, msg):
         instance_id = msg.instance
@@ -202,7 +243,13 @@ class Proposer(Worker):
         if msg.phase == Message.SUBMIT:
             self.propose(state, msg)
 
-        if int(self.id) == int(state.proposer_id):
+
+        if msg.phase == Message.PING_FROM_LEADER:
+            self.logger(
+                '[{}] {} received PING_FROM_LEADER with id={}'.format(msg.instance, self, msg.by))
+            state.last_rcv_ping_from_leader = time.time()
+
+        if int(self.id) == int(state.leader_id):
 
             if msg.phase == Message.PHASE_1B:
                 rnd, v_rnd, v_val = msg.data
@@ -261,6 +308,11 @@ class Proposer(Worker):
                     # prevent others quorum
                     state.rcv_phase2b = []
 
+    # def join(self, timeout = None):
+    #     self.ping_proposers_t.join()
+    #     self.monitor_leader_t.join()
+    #     super().join(timeout=timeout)
+
 class AcceptorState:
     def __init__(self):
         self.rnd = 0
@@ -275,6 +327,7 @@ class Acceptor(Worker):
     def on_rcv(self, msg):
         instance_id = msg.instance
         state = self.get_state(instance_id)
+
 
         if msg.phase == Message.PHASE_1A:
             c_rnd = msg.data[0]
@@ -329,25 +382,14 @@ class Learner(Worker):
 class Client(Worker):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.last = 0
+        self.last = time.time()
 
     def submit(self, v):
-        msg = Message.make_submit(v, instance=self.last)
+        msg = Message.make_submit(v, instance=self.last, leader_id=0)
         self.logger('[{}] {} sending SUBMIT with val={}'.format(self, msg.instance, v))
         self.sendmsg(self.network['proposers'][0], msg)
-
-    def leader_election(self):
-        proposers = self.network['proposers'][0]
-
-        self.sendmsg(proposers, )
-
         self.last += 1
 
-        return self.last
-
-    def on_rcv(self, msg):
-        if msg.phase == Message.MAKE_KING:
-            self.logger('{} make king proposer id={}'.format(self, msg.by))
 
 
 class Message():
@@ -358,11 +400,13 @@ class Message():
     PHASE_2B = 'PHASE_2B'
     DECIDE = 'DECIDE'
 
-    MAKE_KING = 'MAKE_KING'
-    I_WANNA_BE_ARTHUR = 'I_WANNA_BE_ARTHUR'
+    YOU_ARE_LEADER = 'YOU_ARE_LEADER'
+    LEADER_SELECTED = 'LEADER_SELECTED'
 
-    ARE_YOU_ALIVE = 'ARE_YOU_ALIVE'
-    I_AM_ALIVE = 'I_AM_ALIVE'
+    MAKE_ME_KING = 'MAKE_ME_KING'
+
+    PING_FROM_LEADER = 'PING_FROM_LEADER'
+    PONG = 'I_AM_ALIVE'
 
     def __init__(self, phase, data, instance, by=None, to=None):
         super().__init__()
@@ -382,8 +426,8 @@ class Message():
         return m
 
     @classmethod
-    def make_submit(cls, v, id=0, *args, **kwargs):
-        return cls(cls.SUBMIT, [v, id],  *args, **kwargs)
+    def make_submit(cls, v, leader_id=0, *args, **kwargs):
+        return cls(cls.SUBMIT, [v, leader_id],  *args, **kwargs)
 
     @classmethod
     def make_phase_1a(cls, c_rnd,  *args, **kwargs):
@@ -406,17 +450,14 @@ class Message():
         return cls(cls.DECIDE, [v_val],  *args, **kwargs)
 
     @classmethod
-    def make_king(cls, *args, **kwargs):
-        return cls(cls.MAKE_KING, *args, **kwargs)
+    def you_are_leader(cls, *args, **kwargs):
+        return cls(cls.YOU_ARE_LEADER, *args, **kwargs)
 
     @classmethod
-    def i_wanna_be_arthur(cls, *args, **kwargs):
-        return cls(cls.I_WANNA_BE_ARTHUR, *args, **kwargs)
+    def leader_selected(cls, leader_id, *args, **kwargs):
+        return cls(cls.LEADER_SELECTED, [leader_id], *args, **kwargs)
 
     @classmethod
-    def i_am_alive(cls, *args, **kwargs):
-        return cls(cls.I_AM_ALIVE, *args, **kwargs)
+    def ping_from_leader(cls, *args, **kwargs):
+        return cls(cls.PING_FROM_LEADER, [], *args, **kwargs)
 
-    @classmethod
-    def are_you_alive(cls, *args, **kwargs):
-        return cls(cls.ARE_YOU_ALIVE, *args, **kwargs)

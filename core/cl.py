@@ -12,15 +12,13 @@ network = make_network(config_path)
 
 logger = make_logger(debug=True)
 
-w = Worker.from_role(role, ip, port, id, logger)
+w = Worker.from_role(role, ip, port, id, logger, network=network)
 
 logger('Spawning {}'.format(str(w)))
-
-w(network)
 w.start()
 
 if role == 'clients':
     v = sys.argv[4]
     w.submit(v)
 
-# python3 batch.py clients 0 config.txt 2
+# python3 cl.py clients 0 config.txt 2

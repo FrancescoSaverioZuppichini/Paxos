@@ -26,5 +26,5 @@ pprint.pprint(network)
 time.sleep(0.5)
 # get the client
 workers[0].submit('Hello world!')
-workers[0].submit('Hello world!')
+# workers[0].submit('Hello world!')
 
