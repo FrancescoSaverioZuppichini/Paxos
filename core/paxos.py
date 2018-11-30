@@ -381,9 +381,11 @@ class Learner(Worker):
             self.sendmsg(self.network['learners'][0], Message.make_share_state(self.state), to=msg.by)
 
         if msg.phase == Message.SHARE_STATE and int(self.id) == int(msg.to):
-            self.state = msg.data[0]
-            for s in self.state.values():
-                print(s.v)
+            if len(self.state) == 0:
+
+                self.state = msg.data[0]
+                for s in self.state.values():
+                        print(s.v)
 
         if msg.phase == Message.DECIDE:
             v_val = msg.data[0]
