@@ -96,7 +96,7 @@ class Worker(Thread):
     def make_state(self):
         return {}
 
-    def sendmsg(self, addr, msg):
+    def sendmsg(self, addr, msg, to=None):
         """
         This function uses the 'client' socket to send a messages to a group.
         If loss_prob is > 0 then the message can be lost.
@@ -104,6 +104,8 @@ class Worker(Thread):
         :param msg:
         :return:
         """
+        msg.by = self.id
+        msg.to = to
         should_send = self.loss_prob <= random.random()
         if should_send: self.client.sendto(msg.encode().encode(), addr)
         else: self.logger('{} loss msg={}'.format(self, msg.phase))
@@ -333,7 +335,20 @@ class Client(Worker):
         msg = Message.make_submit(v, instance=self.last)
         self.logger('[{}] {} sending SUBMIT with val={}'.format(self, msg.instance, v))
         self.sendmsg(self.network['proposers'][0], msg)
+
+    def leader_election(self):
+        proposers = self.network['proposers'][0]
+
+        self.sendmsg(proposers, )
+
         self.last += 1
+
+        return self.last
+
+    def on_rcv(self, msg):
+        if msg.phase == Message.MAKE_KING:
+            self.logger('{} make king proposer id={}'.format(self, msg.by))
+
 
 class Message():
     SUBMIT = 'SUBMIT'
@@ -343,11 +358,19 @@ class Message():
     PHASE_2B = 'PHASE_2B'
     DECIDE = 'DECIDE'
 
-    def __init__(self, phase, data, instance):
+    MAKE_KING = 'MAKE_KING'
+    I_WANNA_BE_ARTHUR = 'I_WANNA_BE_ARTHUR'
+
+    ARE_YOU_ALIVE = 'ARE_YOU_ALIVE'
+    I_AM_ALIVE = 'I_AM_ALIVE'
+
+    def __init__(self, phase, data, instance, by=None, to=None):
         super().__init__()
         self.phase = phase
         self.data = data
         self.instance = instance
+        self.by = by
+        self.to = to
 
     def encode(self):
         return json.dumps(self.__dict__)
@@ -355,7 +378,7 @@ class Message():
     @classmethod
     def from_enc(self, enc):
         dec = json.loads(enc)
-        m = self(dec['phase'], dec['data'], dec['instance'])
+        m = self(**dec)
         return m
 
     @classmethod
@@ -381,3 +404,19 @@ class Message():
     @classmethod
     def make_decide(cls, v_val,  *args, **kwargs):
         return cls(cls.DECIDE, [v_val],  *args, **kwargs)
+
+    @classmethod
+    def make_king(cls, *args, **kwargs):
+        return cls(cls.MAKE_KING, *args, **kwargs)
+
+    @classmethod
+    def i_wanna_be_arthur(cls, *args, **kwargs):
+        return cls(cls.I_WANNA_BE_ARTHUR, *args, **kwargs)
+
+    @classmethod
+    def i_am_alive(cls, *args, **kwargs):
+        return cls(cls.I_AM_ALIVE, *args, **kwargs)
+
+    @classmethod
+    def are_you_alive(cls, *args, **kwargs):
+        return cls(cls.ARE_YOU_ALIVE, *args, **kwargs)
