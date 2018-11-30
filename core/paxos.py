@@ -4,6 +4,7 @@ import numpy as np
 import time
 import struct
 import random
+import pickle
 
 from utils import make_logger, Config
 
@@ -77,11 +78,15 @@ class Worker(Thread):
         self.server.bind((self.ip, self.port))
 
         self.logger('{} listening'.format(self))
+
         while True:
             msg, address = self.server.recvfrom(1024)
-            msg = Message.from_enc(msg.decode())
+            msg = Message.from_enc(msg)
             self.current_msg = msg
             self.on_rcv(msg)
+
+    def spawn(self):
+        pass
 
     def on_rcv(self, msg):
         """
@@ -111,7 +116,7 @@ class Worker(Thread):
         msg.by = self.id
         msg.to = to
         should_send = self.loss_prob <= random.random()
-        if should_send: self.client.sendto(msg.encode().encode(), addr)
+        if should_send: self.client.sendto(msg.encode(), addr)
         else: self.logger('{} loss msg={}'.format(self, msg.phase))
 
     def __call__(self, network):
@@ -243,7 +248,6 @@ class Proposer(Worker):
         if msg.phase == Message.SUBMIT:
             self.propose(state, msg)
 
-
         if msg.phase == Message.PING_FROM_LEADER:
             self.logger(
                 '[{}] {} received PING_FROM_LEADER with id={}'.format(msg.instance, self, msg.by))
@@ -308,11 +312,6 @@ class Proposer(Worker):
                     # prevent others quorum
                     state.rcv_phase2b = []
 
-    # def join(self, timeout = None):
-    #     self.ping_proposers_t.join()
-    #     self.monitor_leader_t.join()
-    #     super().join(timeout=timeout)
-
 class AcceptorState:
     def __init__(self):
         self.rnd = 0
@@ -362,15 +361,29 @@ class LearnerState:
     def __init__(self):
         self.v = None
 
+    def __repr__(self):
+        return str(self.v)
 
 class Learner(Worker):
+
 
     def make_state(self):
         return LearnerState()
 
     def on_rcv(self, msg):
         instance_id = msg.instance
-        state = self.get_state(instance_id)
+
+        if instance_id != None:
+            state = self.get_state(instance_id)
+
+        if msg.phase == Message.SPAWN and int(self.id) != int(msg.by):
+            print('sending my state')
+            self.sendmsg(self.network['learners'][0], Message.make_share_state(self.state), to=msg.by)
+
+        if msg.phase == Message.SHARE_STATE and int(self.id) == int(msg.to):
+            self.state = msg.data[0]
+            for s in self.state.values():
+                print(s.v)
 
         if msg.phase == Message.DECIDE:
             v_val = msg.data[0]
@@ -378,6 +391,9 @@ class Learner(Worker):
             self.logger('[{}] {} DECIDE v_val={}'.format(msg.instance, self, v_val))
 
             print(v_val)
+
+    def spawn(self):
+        self.sendmsg(self.network['learners'][0], Message.make_spawn())
 
 class Client(Worker):
     def __init__(self, *args, **kwargs):
@@ -400,15 +416,13 @@ class Message():
     PHASE_2B = 'PHASE_2B'
     DECIDE = 'DECIDE'
 
-    YOU_ARE_LEADER = 'YOU_ARE_LEADER'
-    LEADER_SELECTED = 'LEADER_SELECTED'
-
-    MAKE_ME_KING = 'MAKE_ME_KING'
+    SPAWN = 'SPAWN'
+    SHARE_STATE = 'SHARE_STATE'
 
     PING_FROM_LEADER = 'PING_FROM_LEADER'
     PONG = 'I_AM_ALIVE'
 
-    def __init__(self, phase, data, instance, by=None, to=None):
+    def __init__(self, phase, data, instance=None, by=None, to=None):
         super().__init__()
         self.phase = phase
         self.data = data
@@ -417,13 +431,21 @@ class Message():
         self.to = to
 
     def encode(self):
-        return json.dumps(self.__dict__)
+        return pickle.dumps(self)
 
     @classmethod
     def from_enc(self, enc):
-        dec = json.loads(enc)
-        m = self(**dec)
+        # dec = json.loads(enc)
+        m = pickle.loads(enc)
         return m
+
+    @classmethod
+    def make_spawn(cls, *args, **kwargs):
+        return cls(Message.SPAWN, [], *args, **kwargs)
+
+    @classmethod
+    def make_share_state(cls, state, *args, **kwargs):
+        return cls(Message.SHARE_STATE, [state], *args, **kwargs)
 
     @classmethod
     def make_submit(cls, v, leader_id=0, *args, **kwargs):
