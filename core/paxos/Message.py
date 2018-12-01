@@ -12,7 +12,9 @@ class Message():
     SHARE_STATE = 'SHARE_STATE'
 
     PING_FROM_LEADER = 'PING_FROM_LEADER'
-    PONG = 'I_AM_ALIVE'
+    PONG = 'PONG'
+    PING = 'PING'
+    LEADER_DEAD = 'LEADER_DEAD'
 
     def __init__(self, phase, data, instance=None, by=None, to=None):
         super().__init__()
@@ -62,17 +64,22 @@ class Message():
     def make_decide(cls, v_val,  *args, **kwargs):
         return cls(cls.DECIDE, [v_val],  *args, **kwargs)
 
-    @classmethod
-    def you_are_leader(cls, *args, **kwargs):
-        return cls(cls.YOU_ARE_LEADER, *args, **kwargs)
-
-    @classmethod
-    def leader_selected(cls, leader_id, *args, **kwargs):
-        return cls(cls.LEADER_SELECTED, [leader_id], *args, **kwargs)
 
     @classmethod
     def ping_from_leader(cls, *args, **kwargs):
         return cls(cls.PING_FROM_LEADER, [], *args, **kwargs)
+
+    @classmethod
+    def make_ping(cls, *args, **kwargs):
+        return cls(cls.PING, [], *args, **kwargs)
+
+    @classmethod
+    def make_pong(cls, *args, **kwargs):
+        return cls(cls.PONG, [], *args, **kwargs)
+
+    @classmethod
+    def make_leader_dead(cls, *args, **kwargs):
+        return cls(cls.LEADER_DEAD, [], *args, **kwargs)
 
     def __str__(self):
         return self.phase

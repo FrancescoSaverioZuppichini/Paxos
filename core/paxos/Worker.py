@@ -111,7 +111,7 @@ class Worker(Thread):
         :param msg:
         :return:
         """
-        msg.by = self.id
+        msg.by = (self.role, self.addr, self.id)
         msg.to = to
         should_send = self.loss_prob <= random.random()
         if should_send:
@@ -121,10 +121,10 @@ class Worker(Thread):
 
 
     def i_am_the_sender(self, msg):
-        return self.id == msg.by
+        return (self.role, self.addr, self.id) == msg.by
 
     def i_am_the_receiver(self, msg):
-        return self.id == msg.to
+        return (self.role, self.addr, self.id) == msg.to
 
     def __call__(self, network):
         self.network = network

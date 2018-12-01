@@ -52,6 +52,8 @@ class Proposer(Worker):
                         self.logger('Leader could be dead')
                         is_leader_dead = True
 
+                        self.sendmsg(self.network['clients'][0], Message.make_leader_dead())
+
     def run(self):
         self.monitor_leader_t.start()
         super().run()
@@ -139,10 +141,11 @@ class Proposer(Worker):
         instance_id = msg.instance
         state = self.get_state(instance_id)
 
-        if msg.phase == Message.SUBMIT: self.handle_submit(msg, state)
+        if msg.phase == Message.PING: self.sendmsg(msg.by[1], Message.make_pong())
+        elif msg.phase == Message.SUBMIT: self.handle_submit(msg, state)
         elif msg.phase == Message.PING_FROM_LEADER: self.handle_ping_from_leader(msg, state)
 
-        if int(self.id) == int(state.leader_id):
+        if int(self.id) == state.leader_id:
 
             if msg.phase == Message.PHASE_1B: self.handle_phase_1b(msg, state)
             elif msg.phase == Message.PHASE_2B: self.handle_phase_2b(msg, state)
