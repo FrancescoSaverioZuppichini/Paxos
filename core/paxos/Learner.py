@@ -10,7 +10,6 @@ class LearnerState:
 
 class Learner(Worker):
 
-
     def make_state(self):
         return LearnerState()
 
@@ -20,11 +19,12 @@ class Learner(Worker):
         if instance_id != None:
             state = self.get_state(instance_id)
 
-        if msg.phase == Message.SPAWN and int(self.id) != int(msg.by):
-            print('sending my state')
-            self.sendmsg(self.network['learners'][0], Message.make_share_state(self.state), to=msg.by)
+        if msg.phase == Message.SPAWN and not self.i_am_the_sender(msg):
+            msg = Message.make_share_state(self.state)
+            self.logger('sending', msg)
+            self.sendmsg(self.network['learners'][0], msg, to=msg.by)
 
-        if msg.phase == Message.SHARE_STATE and int(self.id) == int(msg.to):
+        if msg.phase == Message.SHARE_STATE and self.i_am_the_receiver(msg):
             if len(self.state) == 0:
 
                 self.state = msg.data[0]

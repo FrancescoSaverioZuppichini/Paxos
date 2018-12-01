@@ -27,7 +27,7 @@ class Worker(Thread):
         :param loss_prob: (0,1) The probability for a message to be lost
         """
         super().__init__()
-        self.role, self.ip, self.port, self.id = role, ip, port, id
+        self.role, self.ip, self.port, self.id = role, ip, port, int(id)
         self.make_server()
         self.make_client()
 
@@ -80,6 +80,7 @@ class Worker(Thread):
             msg, address = self.server.recvfrom(1024)
             msg = Message.from_enc(msg)
             self.current_msg = msg
+            self.logger('received {} data={}'.format(msg, msg.data))
             self.on_rcv(msg)
 
     def spawn(self):
@@ -113,8 +114,17 @@ class Worker(Thread):
         msg.by = self.id
         msg.to = to
         should_send = self.loss_prob <= random.random()
-        if should_send: self.client.sendto(msg.encode(), addr)
+        if should_send:
+            self.client.sendto(msg.encode(), addr)
+            self.logger('sending {}'.format(msg))
         else: self.logger('{} loss msg={}'.format(self, msg.phase))
+
+
+    def i_am_the_sender(self, msg):
+        return self.id == msg.by
+
+    def i_am_the_receiver(self, msg):
+        return self.id == msg.to
 
     def __call__(self, network):
         self.network = network

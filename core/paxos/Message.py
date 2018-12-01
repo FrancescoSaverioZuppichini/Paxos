@@ -74,3 +74,6 @@ class Message():
     @classmethod
     def ping_from_leader(cls, *args, **kwargs):
         return cls(cls.PING_FROM_LEADER, [], *args, **kwargs)
+
+    def __str__(self):
+        return self.phase
