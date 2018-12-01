@@ -1,4 +1,5 @@
 import time
+from datetime import datetime
 from threading import Thread
 
 class Config:
@@ -8,7 +9,7 @@ def make_logger(debug=True):
 
     def loginfo(info):
         if debug:
-            print('[{:.6f}]:{}'.format(time.time(), info))
+            print('[{}]:{}'.format(datetime.now().isoformat(), info))
 
     return loginfo
 

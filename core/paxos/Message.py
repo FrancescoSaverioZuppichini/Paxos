@@ -27,7 +27,6 @@ class Message():
 
     @classmethod
     def from_enc(self, enc):
-        # dec = json.loads(enc)
         m = pickle.loads(enc)
         return m
 

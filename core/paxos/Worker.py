@@ -80,7 +80,7 @@ class Worker(Thread):
             msg, address = self.server.recvfrom(1024)
             msg = Message.from_enc(msg)
             self.current_msg = msg
-            self.logger('received {} data={}'.format(msg, msg.data))
+            self.logger('[{}] received {} data={}'.format(msg.instance, msg, msg.data))
             self.on_rcv(msg)
 
     def spawn(self):
@@ -116,7 +116,7 @@ class Worker(Thread):
         should_send = self.loss_prob <= random.random()
         if should_send:
             self.client.sendto(msg.encode(), addr)
-            self.logger('sending {}'.format(msg))
+            self.logger('[{}] sending {}'.format(msg.instance, msg))
         else: self.logger('{} loss msg={}'.format(self, msg.phase))
 
 
