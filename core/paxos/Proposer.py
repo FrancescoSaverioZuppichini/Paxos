@@ -6,6 +6,7 @@ from .Worker import Worker
 from .Message import Message
 
 from .utils import Config
+
 class ProposerState:
     def __init__(self):
         self.c_rnd = 0
@@ -98,7 +99,7 @@ class Proposer(Worker):
 
                 state.v_rnd2v_val[v_rnd].append(v_val)
 
-                k = np.max(state.rcv_v_rnd)  # largest v-rnd velued received
+                k = np.max(state.rcv_v_rnd)  # largest v-rnd value received
                 V = list(set(state.v_rnd2v_val[k]))  # set of (v-rnd, v-val) received with v-rnd=k
 
                 c_val = V[0]  # the only v-val in V

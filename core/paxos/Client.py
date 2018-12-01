@@ -27,6 +27,9 @@ class Client(Worker):
 
             self.leader_id = id
 
+            msg = Message.make_submit(self.v, instance=self.instance, leader_id=id)
+            self.sendmsg(self.network['proposers'][0], msg)
+
         pass
 
     def submit(self, v):
