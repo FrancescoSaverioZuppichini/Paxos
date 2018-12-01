@@ -1,8 +1,6 @@
 import pprint
-
-from paxos import Worker
-from utils import make_config, make_network, make_logger
 import time
+from paxos import from_network, make_logger
 # CONFIG_FILE = './config.txt'
 
 # network = make_network(CONFIG_FILE)
@@ -17,7 +15,7 @@ network = {
 # optionally create a logger function. e.g. lambda x: print(x)
 logger = make_logger(debug=True)
 # creates all the workers from the network dictionary
-workers = Worker.from_network(network, logger=logger)
+workers = from_network(network, logger=logger)
 
 pprint.pprint(network)
 # start the server in each workers

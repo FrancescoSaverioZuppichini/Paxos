@@ -1,7 +1,7 @@
 import sys
 import time
 
-from utils import make_network, make_logger
+from paxos import make_network, make_logger, from_role
 from paxos import Worker
 
 role, id, config_path = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -12,7 +12,7 @@ network = make_network(config_path)
 
 logger = make_logger(debug=True)
 
-w = Worker.from_role(role, ip, port, id, logger, network=network)
+w = from_role(role, ip, port, id, logger, network=network)
 
 # w = Worker.from_role('learners', '239.0.0.1', 8000, 1, logger, network=network)
 
