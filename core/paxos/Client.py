@@ -33,4 +33,4 @@ class Client(Worker):
 
     def submit(self, v):
         self.v = v
-        self.sendmsg(self.network['proposers'][0], Message.make_submit(v, instance=None, leader_id=0))
+        self.sendmsg(self.network['proposers'][0], Message.make_submit(v, instance=None))

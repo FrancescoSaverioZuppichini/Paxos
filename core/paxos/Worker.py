@@ -116,7 +116,7 @@ class Worker(Thread):
         should_send = self.loss_prob <= random.random()
         if should_send:
             self.client.sendto(msg.encode(), addr)
-            self.logger('[{}] sending {}'.format(msg.instance, msg))
+            self.logger('[{}] sending {} data={}'.format(msg.instance, msg, msg.data))
         else: self.logger('{} loss msg={}'.format(self, msg.phase))
 
 

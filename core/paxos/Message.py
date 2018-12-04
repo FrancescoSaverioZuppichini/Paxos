@@ -6,6 +6,10 @@ class Message():
     PHASE_1B = 'PHASE_1B'
     PHASE_2A = 'PHASE_2A'
     PHASE_2B = 'PHASE_2B'
+
+    PHASE_1L = 'PHASE_1L'
+    PHASE_2L = 'PHASE_2L'
+
     DECIDE = 'DECIDE'
 
     SPAWN = 'SPAWN'
@@ -66,8 +70,8 @@ class Message():
 
 
     @classmethod
-    def ping_from_leader(cls, *args, **kwargs):
-        return cls(cls.PING_FROM_LEADER, [], *args, **kwargs)
+    def ping_from_leader(cls, leader_id, *args, **kwargs):
+        return cls(cls.PING_FROM_LEADER, [leader_id], *args, **kwargs)
 
     @classmethod
     def make_ping(cls, *args, **kwargs):
@@ -76,6 +80,14 @@ class Message():
     @classmethod
     def make_pong(cls, *args, **kwargs):
         return cls(cls.PONG, [], *args, **kwargs)
+
+    @classmethod
+    def make_phase_1l(cls, leader_id, *args, **kwargs):
+        return cls(cls.PHASE_1L, [leader_id], *args, **kwargs)
+
+    @classmethod
+    def make_phase_2l(cls, leader_id, *args, **kwargs):
+        return cls(cls.PHASE_2L, [leader_id], *args, **kwargs)
 
     @classmethod
     def make_leader_dead(cls, *args, **kwargs):
