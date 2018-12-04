@@ -39,6 +39,5 @@ class Acceptor(Worker):
     def on_rcv(self, msg):
         instance_id = msg.instance
         state = self.get_state(instance_id)
-
         if msg.phase == Message.PHASE_1A: self.handle_phase_1a(msg, state)
         elif msg.phase == Message.PHASE_2A: self.handle_phase_2a(msg, state)

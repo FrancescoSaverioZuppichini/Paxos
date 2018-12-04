@@ -24,9 +24,8 @@ class ProposerState:
         self.last_rcv_ping_from_leader = None
 
 class Proposer(Worker):
-    PING_RATE_S = 2
-    LEADER_WAIT_S = 3
-
+    PING_RATE_S = 99999999
+    LEADER_WAIT_S = 9999999999999999
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -35,6 +34,8 @@ class Proposer(Worker):
 
         self.ping_proposers_t.daemon = True
         self.monitor_leader_t.daemon = True
+
+        self.last_instance_id = 0
 
     def ping_proposers(self):
         while True:
@@ -69,15 +70,18 @@ class Proposer(Worker):
     def handle_submit(self, msg, state):
         v, leader_id = msg.data
 
+        self.last_instance_id += 1
+        state = self.get_state(self.last_instance_id)
+
         state.v = v
-        state.c_rnd *= self.id
+        state.c_rnd = (state.c_rnd + 1) * self.id
         state.leader_id = leader_id
 
         if int(self.id) == int(state.leader_id):
             acceptors = self.network['acceptors'][0]
 
             self.sendmsg(acceptors,
-                         Message.make_phase_1a(state.c_rnd, msg.instance))
+                         Message.make_phase_1a(state.c_rnd, self.last_instance_id))
 
             if not self.ping_proposers_t.is_alive(): self.ping_proposers_t.start()
 
@@ -120,6 +124,7 @@ class Proposer(Worker):
         instance_id = msg.instance
 
         state.rcv_phase2b.append(v_rnd)
+
         quorum_n = max(Config.MIN_ACCEPTORS_N, self.network['acceptors'][-1]) // 2
 
         if len(state.rcv_phase2b) > quorum_n:
@@ -138,11 +143,14 @@ class Proposer(Worker):
         state.last_rcv_ping_from_leader = time.time()
 
     def on_rcv(self, msg):
+
         instance_id = msg.instance
         state = self.get_state(instance_id)
 
         if msg.phase == Message.PING: self.sendmsg(msg.by[1], Message.make_pong())
-        elif msg.phase == Message.SUBMIT: self.handle_submit(msg, state)
+        elif msg.phase == Message.SUBMIT:
+            self.handle_submit(msg, state)
+
         elif msg.phase == Message.PING_FROM_LEADER: self.handle_ping_from_leader(msg, state)
 
         if int(self.id) == state.leader_id:

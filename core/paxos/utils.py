@@ -1,6 +1,5 @@
 import time
 from datetime import datetime
-from threading import Thread
 
 class Config:
     MIN_ACCEPTORS_N = 3
