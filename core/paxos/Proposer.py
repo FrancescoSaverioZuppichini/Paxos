@@ -26,6 +26,7 @@ class ProposerState:
 class Proposer(Worker):
     PING_RATE_S = 2
     LEADER_WAIT_S = 3
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -52,7 +53,6 @@ class Proposer(Worker):
                     if elapsed > self.LEADER_WAIT_S and not is_leader_dead:
                         self.logger('Leader could be dead')
                         is_leader_dead = True
-
                         self.sendmsg(self.network['clients'][0], Message.make_leader_dead())
 
     def run(self):
@@ -70,11 +70,10 @@ class Proposer(Worker):
         v, leader_id = msg.data
 
         state.v = v
-        state.c_rnd += 1
+        state.c_rnd *= self.id
         state.leader_id = leader_id
 
         if int(self.id) == int(state.leader_id):
-
             acceptors = self.network['acceptors'][0]
 
             self.sendmsg(acceptors,

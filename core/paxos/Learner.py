@@ -25,7 +25,6 @@ class Learner(Worker):
             for s in self.state.values():
                 print(s.v)
 
-
     def handle_phase_decide(self, msg, state):
         v_val = msg.data[0]
         state.v = v_val

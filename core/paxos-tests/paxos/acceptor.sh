@@ -1,0 +1,1 @@
+python3 ../../cl.py acceptors $1 $2
