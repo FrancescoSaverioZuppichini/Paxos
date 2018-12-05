@@ -102,7 +102,7 @@ class Proposer(Worker):
         state.rcv_phase1b.append(rnd)
 
         quorum_n = max(Config.MIN_ACCEPTORS_N, self.network['acceptors'][-1]) // 2
-
+        # TODO this whole logic was copy and paste from the weird pseudocode. It is not memory efficient
         if len(state.rcv_phase1b) > quorum_n:
             self.logger('[{}] quorum={} for PHASE_1B'.format(msg.instance, len(state.rcv_phase1b)))
 

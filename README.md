@@ -40,9 +40,9 @@ workers[0].submit('Hello world!\n')
      'clients': (('239.0.0.1', 5000), 1),
      'learners': (('239.0.0.1', 8000), 2),
      'proposers': (('239.0.0.1', 6000), 1)}
-    value Hello world!
+   Hello world!
     
-    value Hello world!
+   Hello world!
     
 
 
