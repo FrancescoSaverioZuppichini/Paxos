@@ -1,1 +1,1 @@
-python3 ../cl.py clients $1 $2 $3
+python3 ../../cl.py clients $1 $2

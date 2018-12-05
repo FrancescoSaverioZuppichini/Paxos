@@ -1,0 +1,1 @@
+python3 ../cl.py proposers $1 $2
