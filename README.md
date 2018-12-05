@@ -14,7 +14,7 @@ Let's see some code. The **learnes** will output the learned value
 import pprint
 
 from paxos import Worker
-from utils import make_network, make_logger
+from paxos import from_network, make_logger
 
 # define the topology
 # key = ((ip, port), n)
@@ -27,7 +27,7 @@ network = {
 # optionally create a logger function. e.g. lambda x: print(x)
 logger = make_logger(debug=False)
 # creates all the workers from the network dictionary
-workers = Worker.from_network(network, logger=logger)
+workers = from_network(network, logger=logger)
 
 pprint.pprint(network)
 # start the server in each worker. Each worker spawns a thread to listen for incoming msgs.
@@ -48,3 +48,8 @@ workers[0].submit('Hello world!\n')
 
 To see all the messages types and useful informations you can enable the debug mode by calling `logger = make_logger(debug=True`)
 
+### Leader Election
+TODO
+
+### Catch up
+TODO
