@@ -24,6 +24,7 @@ w.spawn()
 if role == 'clients':
     for value in sys.stdin:
         value = value.strip()
+        # print('v : {}'.format(value))
         logger('v : {}'.format(value))
         w.submit(value)
 
