@@ -58,7 +58,9 @@ class Proposer(Worker):
                     if elapsed > self.LEADER_WAIT_S and not is_leader_dead:
                         self.logger('Leader could be dead')
                         is_leader_dead = True
-                        self.sendmsg(self.network['proposers'][0], Message.make_leader_dead())
+                        self.leader_id = self.id
+                        self.spawn()
+                    else: is_leader_dead = False
 
     def run(self):
         if not self.ping_proposers_t.is_alive(): self.monitor_leader_t.start()
@@ -102,7 +104,7 @@ class Proposer(Worker):
         state.rcv_phase1b.append(rnd)
 
         quorum_n = max(Config.MIN_ACCEPTORS_N, self.network['acceptors'][-1]) // 2
-
+        # TODO this whole logic was copy and paste from the weird pseudocode. It is not memory efficient
         if len(state.rcv_phase1b) > quorum_n:
             self.logger('[{}] quorum={} for PHASE_1B'.format(msg.instance, len(state.rcv_phase1b)))
 
@@ -160,9 +162,9 @@ class Proposer(Worker):
         elif msg.phase == Message.SUBMIT:  self.handle_submit(msg, state)
         elif msg.phase == Message.PING_FROM_LEADER: self.handle_ping_from_leader(msg, state)
         elif msg.phase == Message.PHASE_1L: self.handle_phase_1l(msg, state)
-        elif msg.phase == Message.LEADER_DEAD:
-            self.leader_id = self.id
-            self.spawn()
+        # elif msg.phase == Message.LEADER_DEAD:
+        #     self.leader_id = self.id
+        #     self.spawn()
 
         if int(self.id) == self.leader_id:
             if msg.phase == Message.PHASE_1B: self.handle_phase_1b(msg, state)
