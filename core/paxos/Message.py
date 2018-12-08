@@ -2,6 +2,7 @@ import pickle
 
 class Message():
     SUBMIT = 'SUBMIT'
+
     PHASE_1A = 'PHASE_1A'
     PHASE_1B = 'PHASE_1B'
     PHASE_2A = 'PHASE_2A'
