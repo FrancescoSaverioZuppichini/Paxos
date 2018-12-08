@@ -14,8 +14,6 @@ logger = make_logger(debug=False)
 
 w = from_role(role, ip, port, id, logger, network=network)
 
-# w = Worker.from_role('learners', '239.0.0.1', 8000, 1, logger, network=network)
-
 logger('Spawning {}'.format(str(w)))
 w.start()
 
@@ -26,7 +24,7 @@ w.spawn()
 if role == 'clients':
     for value in sys.stdin:
         value = value.strip()
-        # print('v', value)
+        logger('v : {}'.format(value))
         w.submit(value)
 
 # python3 cl.py clients 0 config.txt 2
