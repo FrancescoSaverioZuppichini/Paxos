@@ -23,7 +23,7 @@ class Acceptor(Worker):
             state.rnd = c_rnd
             self.sendmsg(proposers,
                          Message.make_phase_1b(state.rnd, state.v_rnd, state.v_val, instance_id))
-        if c_rnd <= state.v_rnd:
+        elif c_rnd <= state.v_rnd:
             self.sendmsg(proposers,
                          Message.make_phase_1c(state.v_rnd, instance_id))
 

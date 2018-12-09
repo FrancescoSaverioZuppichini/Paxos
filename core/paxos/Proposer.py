@@ -45,7 +45,6 @@ class Proposer(Worker):
         self.new_v = None
 
         self.flags = {}
-        self.ask_again = False
 
     def ping_proposers(self):
         while True:
@@ -109,6 +108,10 @@ class Proposer(Worker):
     def handle_phase_1l(self, msg, state):
         self.leader_id = max(self.leader_id, int(msg.data[0]))
 
+    def handle_share_state_1a(self, msg, state):
+        data = list(map(lambda k: (k[0], k[1].v), self.state.items()))
+        self.sendmsg(msg.by[1], Message.make_phase_share_state_1b(data))
+
     def handle_phase_1b(self, msg, state):
         rnd, v_rnd, v_val = msg.data
         instance_id = msg.instance
@@ -147,7 +150,6 @@ class Proposer(Worker):
     def handle_phase_1c(self, msg, state):
         v_rnd = msg.data[0]
         if self.i_am_the_leader and v_rnd >= state.c_rnd:
-            print('1c', state, msg.data)
             state.c_rnd = v_rnd + 1
             state.leader_id = self.id
 
@@ -157,16 +159,14 @@ class Proposer(Worker):
                          Message.make_phase_1a(state.c_rnd, msg.instance))
 
             if msg.instance + 1 not in self.flags:
-                print(msg.instance + 1)
                 self.last_instance_id = msg.instance + 1
 
                 self.flags[msg.instance + 1] = True
-                self.ask_again = True
 
                 state = self.get_state(msg.instance + 1)
 
                 state.v = self.new_v
-                state.c_rnd = (state.c_rnd + 1) * (self.id + 1)
+                state.c_rnd = v_rnd + 1
                 state.leader_id = self.leader_id
 
                 acceptors = self.network['acceptors'][0]
@@ -217,7 +217,8 @@ class Proposer(Worker):
                 self.handle_phase_1b(msg, state)
             elif msg.phase == Message.PHASE_2B:
                 self.handle_phase_2b(msg, state)
-
+            elif msg.phase == Message.SHARE_STATE_1A:
+                self.handle_share_state_1a(msg, state)
     @property
     def i_am_the_leader(self):
         return self.id == self.leader_id

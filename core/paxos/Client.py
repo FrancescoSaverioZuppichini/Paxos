@@ -11,5 +11,5 @@ class Client(Worker):
     def submit(self):
         while len(self.buffer) > 0:
             v = self.buffer.pop()
-            self.sendmsg(self.network['proposers'][0], Message.make_submit(v, instance=None))
+            self.sendmsg(self.network['proposers'][0], Message.make_submit(v, instance=1))
             time.sleep(0.001)

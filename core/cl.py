@@ -8,7 +8,7 @@ network = make_network(config_path)
 
 (ip, port), n = network[role]
 
-logger = make_logger(debug=True)
+logger = make_logger(debug=False)
 
 w = from_role(role, ip, port, id, logger, network=network)
 

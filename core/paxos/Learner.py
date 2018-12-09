@@ -13,29 +13,35 @@ class LearnerState:
 class Learner(Worker):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.printed = [None]
+        self.cache = {}
+        self.last = 1
 
     def make_state(self):
         return LearnerState()
 
-    def handle_phase_spawn(self, msg):
-        to = msg.by
-        msg = Message.make_share_state(self.state)
-        self.sendmsg(self.network['learners'][0], msg, to=to)
+    def handle_share_state_1b(self, msg, state):
+        prop_state = msg.data[0]
 
-    def handle_phase_share_state(self, msg):
-        # merge received state with my state
-        self.state = {**self.state, **msg.data[0]}
-        for s in self.state.values():
-            if s.v not in self.printed:
-                print(s.v)
+        for instance_id, v in prop_state:
+            state = self.get_state(instance_id)
+            # TODO refactor
+            self.cache[instance_id] = v
+            state.v = v
+
+        self.print()
 
     def handle_phase_decide(self, msg, state):
         v_val = msg.data[0]
         state.v = v_val
-        if v_val not in self.printed:
-            print(v_val, flush=True)
-        self.printed.append(v_val)
+
+        self.cache[msg.instance] = v_val
+        self.print()
+
+    def print(self):
+        while self.last in self.cache:
+            print(self.cache[self.last], flush=True)
+            del self.cache[self.last]
+            self.last+= 1
 
     def on_rcv(self, msg):
         instance_id = msg.instance
@@ -43,10 +49,9 @@ class Learner(Worker):
 
         if msg.phase == Message.DECIDE:
             self.handle_phase_decide(msg, state)
-        elif msg.phase == Message.SHARE_STATE and self.i_am_the_receiver(msg):
-            self.handle_phase_share_state(msg)
-        elif msg.phase == Message.SPAWN and not self.i_am_the_sender(msg):
-            self.handle_phase_spawn(msg)
+        elif msg.phase == Message.SHARE_STATE_1B:
+            self.handle_share_state_1b(msg, state)
+
 
     def spawn(self):
-        self.sendmsg(self.network['learners'][0], Message.make_spawn())
+        self.sendmsg(self.network['proposers'][0], Message.make_phase_share_state_1a([]))
