@@ -50,6 +50,7 @@ class Proposer(Worker):
         is_leader_dead = False
 
         while True:
+            time.sleep(0.001)
             if self.current_msg != None:
                 state = self.get_state(self.current_msg.instance)
                 if state.last_rcv_ping_from_leader != None:
@@ -63,7 +64,7 @@ class Proposer(Worker):
                     else: is_leader_dead = False
 
     def run(self):
-        if not self.ping_proposers_t.is_alive(): self.monitor_leader_t.start()
+        # if not self.ping_proposers_t.is_alive(): self.monitor_leader_t.start()
         if not self.ping_proposers_t.is_alive(): self.ping_proposers_t.start()
         super().run()
 

@@ -32,8 +32,8 @@ class Learner(Worker):
     def handle_phase_decide(self, msg, state):
         v_val = msg.data[0]
         state.v = v_val
-        print(v_val)
-        sys.stdout.flush()
+        print(v_val, flush=True)
+        # sys.stdout.flush()
         self.printed.append(v_val)
 
     def on_rcv(self, msg):

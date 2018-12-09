@@ -24,8 +24,8 @@ w.spawn()
 if role == 'clients':
     for value in sys.stdin:
         value = value.strip()
-        # print('v : {}'.format(value))
         logger('v : {}'.format(value))
-        w.submit(value)
+        w.buffer.append(value)
 
+    w.submit()
 # python3 cl.py clients 0 config.txt 2
