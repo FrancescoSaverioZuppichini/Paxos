@@ -2,10 +2,8 @@ import sys
 import time
 
 from paxos import make_network, make_logger, from_role
-from paxos import Worker
 
 role, id, config_path = sys.argv[1], sys.argv[2], sys.argv[3]
-# config_path, role = './config.txt', 'learners'
 network = make_network(config_path)
 
 (ip, port), n = network[role]
@@ -26,6 +24,6 @@ if role == 'clients':
         value = value.strip()
         logger('v : {}'.format(value))
         w.buffer.append(value)
-
     w.submit()
+
 # python3 cl.py clients 0 config.txt 2
