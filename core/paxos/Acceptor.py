@@ -6,7 +6,8 @@ class AcceptorState:
         self.rnd = 0
         self.v_rnd = 0
         self.v_val = 0
-
+    def __str__(self):
+        return "rnd={}, v_rnd={}, v_val={}".format(self.rnd, self.v_rnd, self.v_val)
 class Acceptor(Worker):
 
     def make_state(self):
@@ -16,13 +17,15 @@ class Acceptor(Worker):
     def handle_phase_1a(self, msg, state):
         c_rnd = msg.data[0]
         instance_id = msg.instance
+        proposers = self.network['proposers'][0]
 
         if c_rnd > state.rnd:
             state.rnd = c_rnd
-            proposers = self.network['proposers'][0]
-
             self.sendmsg(proposers,
                          Message.make_phase_1b(state.rnd, state.v_rnd, state.v_val, instance_id))
+        if c_rnd <= state.v_rnd:
+            self.sendmsg(proposers,
+                         Message.make_phase_1c(state.v_rnd, instance_id))
 
     def handle_phase_2a(self, msg, state):
         c_rnd, c_val = msg.data

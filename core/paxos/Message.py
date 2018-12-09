@@ -9,6 +9,8 @@ class Message:
 
     PHASE_1A = 'PHASE_1A'
     PHASE_1B = 'PHASE_1B'
+    PHASE_1C = 'PHASE_1C'
+
     PHASE_2A = 'PHASE_2A'
     PHASE_2B = 'PHASE_2B'
 
@@ -65,8 +67,12 @@ class Message:
         return cls(cls.PHASE_1A, [c_rnd],  *args, **kwargs)
 
     @classmethod
-    def make_phase_1b(cls, rnd, v_rnd, v_val,  *args, **kwargs):
-        return cls(cls.PHASE_1B, [rnd, v_rnd, v_val],  *args, **kwargs)
+    def make_phase_1b(cls, rnd, v_rnd, v_val, *args, **kwargs):
+        return cls(cls.PHASE_1B, [rnd, v_rnd, v_val], *args, **kwargs)
+
+    @classmethod
+    def make_phase_1c(cls, v_rnd,  *args, **kwargs):
+        return cls(cls.PHASE_1C, [v_rnd],  *args, **kwargs)
 
     @classmethod
     def make_phase_2a(cls, c_rnd, c_val,  *args, **kwargs):

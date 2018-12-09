@@ -8,7 +8,7 @@ network = make_network(config_path)
 
 (ip, port), n = network[role]
 
-logger = make_logger(debug=False)
+logger = make_logger(debug=True)
 
 w = from_role(role, ip, port, id, logger, network=network)
 
@@ -24,6 +24,7 @@ if role == 'clients':
         value = value.strip()
         logger('v : {}'.format(value))
         w.buffer.append(value)
-    w.submit()
+    # print('done')
+        w.submit()
 
 # python3 cl.py clients 0 config.txt 2
