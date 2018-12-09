@@ -7,12 +7,13 @@ from .Message import Message
 
 from .utils import Config
 
+
 class ProposerState:
     def __init__(self):
         self.c_rnd = 0
         self.c_val = 0
 
-        self.rcv_v_rnd = []
+        self.rcv_v_rnd = 0
         self.v_rnd2v_val = {}
 
         self.v = 0
@@ -22,8 +23,9 @@ class ProposerState:
 
         self.last_rcv_ping_from_leader = None
 
+
 class Proposer(Worker):
-    PING_RATE_S = 2
+    PING_RATE_S = 1
     LEADER_WAIT_S = 3
 
     def __init__(self, *args, **kwargs):
@@ -40,31 +42,32 @@ class Proposer(Worker):
 
     def ping_proposers(self):
         while True:
-            time.sleep(self.PING_RATE_S)
-            if self.id == self.leader_id:
+            if self.i_am_the_leader:
                 if self.current_msg != None: self.sendmsg(self.network['proposers'][0],
                                                           Message.ping_from_leader(self.current_msg.instance,
                                                                                    self.id))
+            time.sleep(self.PING_RATE_S)
 
     def monitor_leader(self):
         is_leader_dead = False
-
+        # TODO bad code should be refactor
         while True:
-            time.sleep(0.001)
+            time.sleep(0.01)
             if self.current_msg != None:
                 state = self.get_state(self.current_msg.instance)
                 if state.last_rcv_ping_from_leader != None:
                     now = time.time()
                     elapsed = now - state.last_rcv_ping_from_leader
                     if elapsed > self.LEADER_WAIT_S and not is_leader_dead:
-                        self.logger('Leader could be dead')
+                        self.logger('Leader probably dead')
                         is_leader_dead = True
                         self.leader_id = self.id
                         self.spawn()
-                    else: is_leader_dead = False
+                    else:
+                        is_leader_dead = False
 
     def run(self):
-        # if not self.ping_proposers_t.is_alive(): self.monitor_leader_t.start()
+        if not self.ping_proposers_t.is_alive(): self.monitor_leader_t.start()
         if not self.ping_proposers_t.is_alive(): self.ping_proposers_t.start()
         super().run()
 
@@ -101,11 +104,12 @@ class Proposer(Worker):
         rnd, v_rnd, v_val = msg.data
         instance_id = msg.instance
 
-        state.rcv_v_rnd.append(v_rnd)
+        state.rcv_v_rnd = max(state.rcv_v_rnd, v_rnd)
         state.rcv_phase1b.append(rnd)
 
         quorum_n = max(Config.MIN_ACCEPTORS_N, self.network['acceptors'][-1]) // 2
         # TODO this whole logic was copy and paste from the weird pseudocode. It is not memory efficient
+        # REVIEW I don't care since it is working well
         if len(state.rcv_phase1b) > quorum_n:
             self.logger('[{}] quorum={} for PHASE_1B'.format(msg.instance, len(state.rcv_phase1b)))
 
@@ -114,7 +118,7 @@ class Proposer(Worker):
 
                 state.v_rnd2v_val[v_rnd].append(v_val)
 
-                k = np.max(state.rcv_v_rnd)  # largest v-rnd value received
+                k = state.rcv_v_rnd  # largest v-rnd value received
                 V = list(set(state.v_rnd2v_val[k]))  # set of (v-rnd, v-val) received with v-rnd=k
 
                 c_val = V[0]  # the only v-val in V
@@ -159,14 +163,21 @@ class Proposer(Worker):
         instance_id = msg.instance
         state = self.get_state(instance_id)
 
-        if msg.phase == Message.PING: self.sendmsg(msg.by[1], Message.make_pong())
-        elif msg.phase == Message.SUBMIT:  self.handle_submit(msg, state)
-        elif msg.phase == Message.PING_FROM_LEADER: self.handle_ping_from_leader(msg, state)
-        elif msg.phase == Message.PHASE_1L: self.handle_phase_1l(msg, state)
-        # elif msg.phase == Message.LEADER_DEAD:
-        #     self.leader_id = self.id
-        #     self.spawn()
+        if msg.phase == Message.PING:
+            self.sendmsg(msg.by[1], Message.make_pong())
+        elif msg.phase == Message.SUBMIT:
+            self.handle_submit(msg, state)
+        elif msg.phase == Message.PING_FROM_LEADER:
+            self.handle_ping_from_leader(msg, state)
+        elif msg.phase == Message.PHASE_1L:
+            self.handle_phase_1l(msg, state)
 
-        if int(self.id) == self.leader_id:
-            if msg.phase == Message.PHASE_1B: self.handle_phase_1b(msg, state)
-            elif msg.phase == Message.PHASE_2B: self.handle_phase_2b(msg, state)
+        if self.i_am_the_leader:
+            if msg.phase == Message.PHASE_1B:
+                self.handle_phase_1b(msg, state)
+            elif msg.phase == Message.PHASE_2B:
+                self.handle_phase_2b(msg, state)
+
+    @property
+    def i_am_the_leader(self):
+        return self.id == self.leader_id

@@ -8,6 +8,7 @@ from paxos.utils import make_logger, Config
 
 from .Message import Message
 
+
 class Worker(Thread):
     """
     Basic class to handle all asynchronous operations. It provides a simple
@@ -16,6 +17,8 @@ class Worker(Thread):
     blocking this class implement `threading.Thread`. When calling the `.start` methods
     the server socket will start to listen.
     """
+    BUFFER_SIZE = 2 ** 16
+
     def __init__(self, role, ip, port, id=None, logger=None, loss_prob=0, network=None):
         """
 
@@ -43,7 +46,7 @@ class Worker(Thread):
         :return:
         """
         self.client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.client.settimeout(0.2)
+        self.client.settimeout(0.5)
         self.client.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, struct.pack('b', 1))
         self.client.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.client.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP,
@@ -59,8 +62,9 @@ class Worker(Thread):
         self.server.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, struct.pack('b', 1))
         self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.server.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP,
-                        struct.pack('4sL', socket.inet_aton(self.ip),
-                                    socket.INADDR_ANY))
+                               struct.pack('4sL', socket.inet_aton(self.ip),
+                                           socket.INADDR_ANY))
+
     @property
     def addr(self):
         return (self.ip, self.port)
@@ -77,7 +81,7 @@ class Worker(Thread):
         self.logger('{} listening'.format(self))
 
         while True:
-            msg, address = self.server.recvfrom(1024)
+            msg, address = self.server.recvfrom(self.BUFFER_SIZE)
             msg = Message.from_enc(msg)
             self.current_msg = msg
             self.logger('[{}] received {} data={}'.format(msg.instance, msg, msg.data))
@@ -117,8 +121,8 @@ class Worker(Thread):
         if should_send:
             self.client.sendto(msg.encode(), addr)
             self.logger('[{}] sending {} data={}'.format(msg.instance, msg, msg.data))
-        else: self.logger('{} loss msg={}'.format(self, msg.phase))
-
+        else:
+            self.logger('{} loss msg={}'.format(self, msg.phase))
 
     def i_am_the_sender(self, msg):
         return (self.role, self.addr, self.id) == msg.by
@@ -128,7 +132,6 @@ class Worker(Thread):
 
     def __call__(self, network):
         self.network = network
-
 
     def __str__(self):
         return str(self.role) + ' ' + str(self.addr) + ' ' + str(self.id)

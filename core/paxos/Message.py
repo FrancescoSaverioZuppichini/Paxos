@@ -1,6 +1,10 @@
 import pickle
 
-class Message():
+class Message:
+    """
+    This class represent a message that can be send from a worker to another one.
+    It uses `pickle` module from python to serialise itself.
+    """
     SUBMIT = 'SUBMIT'
 
     PHASE_1A = 'PHASE_1A'
@@ -22,6 +26,13 @@ class Message():
     LEADER_DEAD = 'LEADER_DEAD'
 
     def __init__(self, phase, data, instance=None, by=None, to=None):
+        """
+        :param phase: One identifier for this messages. All phases are in the class fields
+        :param data: What you want to exchange
+        :param instance: Unique identifier of a instance (aka a room)
+        :param by: sender signature
+        :param to: receiver signature
+        """
         super().__init__()
         self.phase = phase
         self.data = data
@@ -68,7 +79,6 @@ class Message():
     @classmethod
     def make_decide(cls, v_val,  *args, **kwargs):
         return cls(cls.DECIDE, [v_val],  *args, **kwargs)
-
 
     @classmethod
     def ping_from_leader(cls, leader_id, *args, **kwargs):

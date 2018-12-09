@@ -1,6 +1,7 @@
+import time
+
 from .Worker import Worker
 from .Message import Message
-import time
 
 class Client(Worker):
     def __init__(self, *args, **kwargs):
