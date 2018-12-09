@@ -42,6 +42,8 @@ class Proposer(Worker):
 
         self.new_v = None
 
+        self.flags = {}
+
     def ping_proposers(self):
         while True:
             if self.i_am_the_leader:
@@ -151,10 +153,22 @@ class Proposer(Worker):
             self.sendmsg(acceptors,
                          Message.make_phase_1a(state.c_rnd, msg.instance))
 
+        if self.last_instance_id + 1 not in self.flags:
             self.last_instance_id += 1
 
-            self.sendmsg(acceptors,
-                         Message.make_phase_1a(state.c_rnd, msg.instance))
+            self.flags[self.last_instance_id] = True
+
+            state = self.get_state(self.last_instance_id)
+
+            state.v = self.new_v
+            state.c_rnd = (state.c_rnd + 1) * (self.id + 1)
+            state.leader_id = self.leader_id
+
+            if self.i_am_the_leader:
+                acceptors = self.network['acceptors'][0]
+
+                self.sendmsg(acceptors,
+                             Message.make_phase_1a(state.c_rnd, self.last_instance_id))
 
 
     def handle_phase_2b(self, msg, state):
