@@ -23,6 +23,8 @@ class ProposerState:
 
         self.last_rcv_ping_from_leader = None
 
+    def __str__(self):
+        return 'c_rnd={}, c_val={}, v={}'.format(self.c_rnd, self.c_val, self.v)
 
 class Proposer(Worker):
     PING_RATE_S = 2
@@ -43,6 +45,7 @@ class Proposer(Worker):
         self.new_v = None
 
         self.flags = {}
+        self.ask_again = False
 
     def ping_proposers(self):
         while True:
@@ -130,9 +133,7 @@ class Proposer(Worker):
                 c_val = V[0]  # the only v-val in V
 
                 if k == 0: c_val = state.v
-                else:
-                    state.v = c_val
-                    print('********************')
+                else: state.v = c_val
                 state.c_val = c_val
 
                 acceptors = self.network['acceptors'][0]
@@ -145,30 +146,33 @@ class Proposer(Worker):
 
     def handle_phase_1c(self, msg, state):
         v_rnd = msg.data[0]
-        if self.i_am_the_leader and v_rnd <= state.c_rnd:
+        if self.i_am_the_leader and v_rnd >= state.c_rnd:
+            print('1c', state, msg.data)
             state.c_rnd = v_rnd + 1
             state.leader_id = self.id
 
             acceptors = self.network['acceptors'][0]
+
             self.sendmsg(acceptors,
                          Message.make_phase_1a(state.c_rnd, msg.instance))
 
-        if self.last_instance_id + 1 not in self.flags:
-            self.last_instance_id += 1
+            if msg.instance + 1 not in self.flags:
+                print(msg.instance + 1)
+                self.last_instance_id = msg.instance + 1
 
-            self.flags[self.last_instance_id] = True
+                self.flags[msg.instance + 1] = True
+                self.ask_again = True
 
-            state = self.get_state(self.last_instance_id)
+                state = self.get_state(msg.instance + 1)
 
-            state.v = self.new_v
-            state.c_rnd = (state.c_rnd + 1) * (self.id + 1)
-            state.leader_id = self.leader_id
+                state.v = self.new_v
+                state.c_rnd = (state.c_rnd + 1) * (self.id + 1)
+                state.leader_id = self.leader_id
 
-            if self.i_am_the_leader:
                 acceptors = self.network['acceptors'][0]
 
                 self.sendmsg(acceptors,
-                             Message.make_phase_1a(state.c_rnd, self.last_instance_id))
+                             Message.make_phase_1a(state.c_rnd, msg.instance + 1))
 
 
     def handle_phase_2b(self, msg, state):
@@ -187,7 +191,6 @@ class Proposer(Worker):
                 learners = self.network['learners'][0]
 
                 self.sendmsg(learners, Message.make_decide(state.v, instance_id))
-
             # prevent others quorum
             state.rcv_phase2b = []
 
