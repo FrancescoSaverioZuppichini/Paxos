@@ -91,7 +91,7 @@ class Proposer(Worker):
         state.c_rnd = (state.c_rnd + 1) * (self.id + 1)
         state.leader_id = leader_id
 
-        if int(self.id) == int(self.leader_id):
+        if self.i_am_the_leader:
             acceptors = self.network['acceptors'][0]
 
             self.sendmsg(acceptors,
