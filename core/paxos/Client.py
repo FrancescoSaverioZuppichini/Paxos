@@ -7,9 +7,8 @@ class Client(Worker):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.buffer = []
+        self.DELAY = 0.001
 
-    def submit(self):
-        while len(self.buffer) > 0:
-            v = self.buffer.pop()
-            self.sendmsg(self.network['proposers'][0], Message.make_submit(v))
-            time.sleep(0.001)
+    def submit(self, v):
+        self.sendmsg(self.network['proposers'][0], Message.make_submit(v))
+        time.sleep(self.DELAY)

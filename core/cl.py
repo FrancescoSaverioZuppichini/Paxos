@@ -15,7 +15,7 @@ w = from_role(role, ip, port, id, logger, network=network)
 logger('Spawning {}'.format(str(w)))
 w.start()
 
-time.sleep(0.1)
+time.sleep(0.5)
 
 w.spawn()
 
@@ -23,7 +23,6 @@ if role == 'clients':
     for value in sys.stdin:
         value = value.strip()
         logger('v : {}'.format(value))
-        w.buffer.append(value)
-        w.submit()
+        w.submit(value)
 
 # python3 cl.py clients 0 config.txt 2
