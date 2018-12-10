@@ -80,7 +80,7 @@ The core implementation can be found at `./core/paxos`
 
 ## Tests
 
-I used the provided test. It follows the output os each one of them
+I used the provided tests. It follows the outputs of each one of them
 
 ### Paxos
 *The test file was no modified and after 5 seconds all the workes are killed*
