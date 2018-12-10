@@ -115,3 +115,8 @@ dmypy.json
 .pyre/
 
 .idea/
+core/paxos-tests/learn1
+
+core/paxos-tests/learn2
+
+core/paxos-tests/prop\.sorted
