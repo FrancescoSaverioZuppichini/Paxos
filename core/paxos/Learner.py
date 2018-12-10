@@ -23,6 +23,7 @@ class Learner(Worker):
         prop_state = msg.data[0]
 
         for instance_id, v in prop_state:
+            if v == None: continue
             state = self.get_state(instance_id)
             # TODO refactor
             self.cache[instance_id] = v
@@ -32,6 +33,7 @@ class Learner(Worker):
 
     def handle_phase_decide(self, msg, state):
         v_val = msg.data[0]
+
         state.v = v_val
 
         self.cache[msg.instance] = v_val
