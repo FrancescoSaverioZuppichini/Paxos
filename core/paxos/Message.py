@@ -1,5 +1,6 @@
 import pickle
 
+
 class Message:
     """
     This class represent a message that can be send from a worker to another one.
@@ -20,15 +21,15 @@ class Message:
     SHARE_STATE_1A = 'SHARE_STATE_1A'
     SHARE_STATE_1B = 'SHARE_STATE_1B'
 
-    DECIDE = 'DECIDE'
-
-    SPAWN = 'SPAWN'
-    SHARE_STATE = 'SHARE_STATE'
-
     PING_FROM_LEADER = 'PING_FROM_LEADER'
     PONG = 'PONG'
     PING = 'PING'
     LEADER_DEAD = 'LEADER_DEAD'
+
+    DECIDE = 'DECIDE'
+    # TODO deprecated?
+    SPAWN = 'SPAWN'
+    SHARE_STATE = 'SHARE_STATE'
 
     def __init__(self, phase, data, instance=1, by=None, to=None):
         """
@@ -63,31 +64,31 @@ class Message:
 
     @classmethod
     def make_submit(cls, v, leader_id=0, *args, **kwargs):
-        return cls(cls.SUBMIT, [v, leader_id],  *args, **kwargs)
+        return cls(cls.SUBMIT, [v, leader_id], *args, **kwargs)
 
     @classmethod
-    def make_phase_1a(cls, c_rnd,  *args, **kwargs):
-        return cls(cls.PHASE_1A, [c_rnd],  *args, **kwargs)
+    def make_phase_1a(cls, c_rnd, *args, **kwargs):
+        return cls(cls.PHASE_1A, [c_rnd], *args, **kwargs)
 
     @classmethod
     def make_phase_1b(cls, rnd, v_rnd, v_val, *args, **kwargs):
         return cls(cls.PHASE_1B, [rnd, v_rnd, v_val], *args, **kwargs)
 
     @classmethod
-    def make_phase_1c(cls, v_rnd,  *args, **kwargs):
-        return cls(cls.PHASE_1C, [v_rnd],  *args, **kwargs)
+    def make_phase_1c(cls, v_rnd, *args, **kwargs):
+        return cls(cls.PHASE_1C, [v_rnd], *args, **kwargs)
 
     @classmethod
-    def make_phase_2a(cls, c_rnd, c_val,  *args, **kwargs):
-        return cls(cls.PHASE_2A, [c_rnd, c_val],  *args, **kwargs)
+    def make_phase_2a(cls, c_rnd, c_val, *args, **kwargs):
+        return cls(cls.PHASE_2A, [c_rnd, c_val], *args, **kwargs)
 
     @classmethod
-    def make_phase_2b(cls, v_rnd, v_val,  *args, **kwargs):
-        return cls(cls.PHASE_2B, [v_rnd, v_val],  *args, **kwargs)
+    def make_phase_2b(cls, v_rnd, v_val, *args, **kwargs):
+        return cls(cls.PHASE_2B, [v_rnd, v_val], *args, **kwargs)
 
     @classmethod
-    def make_decide(cls, v_val,  *args, **kwargs):
-        return cls(cls.DECIDE, [v_val],  *args, **kwargs)
+    def make_decide(cls, v_val, *args, **kwargs):
+        return cls(cls.DECIDE, [v_val], *args, **kwargs)
 
     @classmethod
     def ping_from_leader(cls, leader_id, *args, **kwargs):

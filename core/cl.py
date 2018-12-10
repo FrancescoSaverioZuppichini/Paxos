@@ -20,17 +20,10 @@ time.sleep(0.1)
 w.spawn()
 
 if role == 'clients':
-    w.buffer.append(3)
-    w.buffer.append(2)
-    w.buffer.append(1)
-
-    w.submit()
-
     for value in sys.stdin:
         value = value.strip()
         logger('v : {}'.format(value))
         w.buffer.append(value)
-    # print('done')
         w.submit()
 
 # python3 cl.py clients 0 config.txt 2

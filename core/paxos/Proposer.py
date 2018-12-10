@@ -26,6 +26,7 @@ class ProposerState:
     def __str__(self):
         return 'c_rnd={}, c_val={}, v={}'.format(self.c_rnd, self.c_val, self.v)
 
+
 class Proposer(Worker):
     PING_RATE_S = 2
     LEADER_WAIT_S = 3.5
@@ -68,7 +69,7 @@ class Proposer(Worker):
                         self.logger('Leader probably dead')
                         is_leader_dead = True
                         self.leader_id = self.id
-                        self.spawn()
+                        self.spaw()
                     else:
                         is_leader_dead = False
 
@@ -134,8 +135,10 @@ class Proposer(Worker):
 
                 c_val = V[0]  # the only v-val in V
 
-                if k == 0: c_val = state.v
-                else: state.v = c_val
+                if k == 0:
+                    c_val = state.v
+                else:
+                    state.v = c_val
                 state.c_val = c_val
 
                 acceptors = self.network['acceptors'][0]
@@ -173,7 +176,6 @@ class Proposer(Worker):
                 self.sendmsg(acceptors,
                              Message.make_phase_1a(state.c_rnd, msg.instance + 1))
 
-
     def handle_phase_2b(self, msg, state):
         v_rnd, v_val = msg.data
         instance_id = msg.instance
@@ -197,7 +199,6 @@ class Proposer(Worker):
         state.last_rcv_ping_from_leader = time.time()
 
     def on_rcv(self, msg):
-
         instance_id = msg.instance
         state = self.get_state(instance_id)
 
@@ -218,6 +219,7 @@ class Proposer(Worker):
                 self.handle_phase_2b(msg, state)
             elif msg.phase == Message.SHARE_STATE_1A:
                 self.handle_share_state_1a(msg, state)
+
     @property
     def i_am_the_leader(self):
         return self.id == self.leader_id

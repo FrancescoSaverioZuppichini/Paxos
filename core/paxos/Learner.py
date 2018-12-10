@@ -40,10 +40,11 @@ class Learner(Worker):
         self.print()
 
     def print(self):
+        # until we can print the next value that we want do it
         while self.last in self.cache:
             print(self.cache[self.last], flush=True)
             del self.cache[self.last]
-            self.last+= 1
+            self.last += 1
 
     def on_rcv(self, msg):
         instance_id = msg.instance
@@ -53,7 +54,6 @@ class Learner(Worker):
             self.handle_phase_decide(msg, state)
         elif msg.phase == Message.SHARE_STATE_1B:
             self.handle_share_state_1b(msg, state)
-
 
     def spawn(self):
         self.sendmsg(self.network['proposers'][0], Message.make_phase_share_state_1a([]))
