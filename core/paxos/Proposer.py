@@ -16,17 +16,19 @@ class ProposerState:
         self.rcv_v_rnd = 0
         self.v_rnd2v_val = {}
 
-        self.v = 0
+        self.v = None
 
         self.rcv_phase1b = []
         self.rcv_phase2b = []
 
         self.last_rcv_ping_from_leader = None
 
+    def __str__(self):
+        return 'c_rnd={}, c_val={}, v={}'.format(self.c_rnd, self.c_val, self.v)
 
 class Proposer(Worker):
-    PING_RATE_S = 1
-    LEADER_WAIT_S = 3
+    PING_RATE_S = 2
+    LEADER_WAIT_S = 3.5
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -39,6 +41,10 @@ class Proposer(Worker):
 
         self.last_instance_id = 0
         self.leader_id = self.id
+
+        self.new_v = None
+
+        self.flags = {}
 
     def ping_proposers(self):
         while True:
@@ -84,21 +90,26 @@ class Proposer(Worker):
     def handle_submit(self, msg, state):
         v, leader_id = msg.data
 
+        self.new_v = v
         self.last_instance_id += 1
+
         state = self.get_state(self.last_instance_id)
 
         state.v = v
         state.c_rnd = (state.c_rnd + 1) * (self.id + 1)
         state.leader_id = leader_id
 
-        if self.i_am_the_leader:
-            acceptors = self.network['acceptors'][0]
+        acceptors = self.network['acceptors'][0]
 
-            self.sendmsg(acceptors,
-                         Message.make_phase_1a(state.c_rnd, self.last_instance_id))
+        self.sendmsg(acceptors,
+                     Message.make_phase_1a(state.c_rnd, self.last_instance_id))
 
     def handle_phase_1l(self, msg, state):
         self.leader_id = max(self.leader_id, int(msg.data[0]))
+
+    def handle_share_state_1a(self, msg, state):
+        data = list(map(lambda k: (k[0], k[1].v), self.state.items()))
+        self.sendmsg(msg.by[1], Message.make_phase_share_state_1b(data))
 
     def handle_phase_1b(self, msg, state):
         rnd, v_rnd, v_val = msg.data
@@ -124,7 +135,7 @@ class Proposer(Worker):
                 c_val = V[0]  # the only v-val in V
 
                 if k == 0: c_val = state.v
-
+                else: state.v = c_val
                 state.c_val = c_val
 
                 acceptors = self.network['acceptors'][0]
@@ -134,6 +145,34 @@ class Proposer(Worker):
 
             # prevent others quorum
             state.rcv_phase1b = []
+
+    def handle_phase_1c(self, msg, state):
+        v_rnd = msg.data[0]
+        if self.i_am_the_leader and v_rnd >= state.c_rnd:
+            state.c_rnd = v_rnd + 1
+            state.leader_id = self.id
+
+            acceptors = self.network['acceptors'][0]
+
+            self.sendmsg(acceptors,
+                         Message.make_phase_1a(state.c_rnd, msg.instance))
+
+            if msg.instance + 1 not in self.flags:
+                self.last_instance_id = msg.instance + 1
+
+                self.flags[msg.instance + 1] = True
+
+                state = self.get_state(msg.instance + 1)
+
+                state.v = self.new_v
+                state.c_rnd = (state.c_rnd + 1) * (self.id + 1)
+                state.leader_id = self.leader_id
+
+                acceptors = self.network['acceptors'][0]
+
+                self.sendmsg(acceptors,
+                             Message.make_phase_1a(state.c_rnd, msg.instance + 1))
+
 
     def handle_phase_2b(self, msg, state):
         v_rnd, v_val = msg.data
@@ -151,7 +190,6 @@ class Proposer(Worker):
                 learners = self.network['learners'][0]
 
                 self.sendmsg(learners, Message.make_decide(state.v, instance_id))
-
             # prevent others quorum
             state.rcv_phase2b = []
 
@@ -165,19 +203,21 @@ class Proposer(Worker):
 
         if msg.phase == Message.PING:
             self.sendmsg(msg.by[1], Message.make_pong())
-        elif msg.phase == Message.SUBMIT:
-            self.handle_submit(msg, state)
         elif msg.phase == Message.PING_FROM_LEADER:
             self.handle_ping_from_leader(msg, state)
         elif msg.phase == Message.PHASE_1L:
             self.handle_phase_1l(msg, state)
-
+        elif msg.phase == Message.PHASE_1C:
+            self.handle_phase_1c(msg, state)
         if self.i_am_the_leader:
-            if msg.phase == Message.PHASE_1B:
+            if msg.phase == Message.SUBMIT:
+                self.handle_submit(msg, state)
+            elif msg.phase == Message.PHASE_1B:
                 self.handle_phase_1b(msg, state)
             elif msg.phase == Message.PHASE_2B:
                 self.handle_phase_2b(msg, state)
-
+            elif msg.phase == Message.SHARE_STATE_1A:
+                self.handle_share_state_1a(msg, state)
     @property
     def i_am_the_leader(self):
         return self.id == self.leader_id
