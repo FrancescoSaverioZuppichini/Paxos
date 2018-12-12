@@ -1,5 +1,6 @@
 import pickle
 
+
 class Message:
     """
     This class represent a message that can be send from a worker to another one.
@@ -17,17 +18,20 @@ class Message:
     PHASE_1L = 'PHASE_1L'
     PHASE_2L = 'PHASE_2L'
 
-    DECIDE = 'DECIDE'
-
-    SPAWN = 'SPAWN'
-    SHARE_STATE = 'SHARE_STATE'
+    SHARE_STATE_1A = 'SHARE_STATE_1A'
+    SHARE_STATE_1B = 'SHARE_STATE_1B'
 
     PING_FROM_LEADER = 'PING_FROM_LEADER'
     PONG = 'PONG'
     PING = 'PING'
     LEADER_DEAD = 'LEADER_DEAD'
 
-    def __init__(self, phase, data, instance=None, by=None, to=None):
+    DECIDE = 'DECIDE'
+    # TODO deprecated?
+    SPAWN = 'SPAWN'
+    SHARE_STATE = 'SHARE_STATE'
+
+    def __init__(self, phase, data, instance=1, by=None, to=None):
         """
         :param phase: One identifier for this messages. All phases are in the class fields
         :param data: What you want to exchange
@@ -60,31 +64,31 @@ class Message:
 
     @classmethod
     def make_submit(cls, v, leader_id=0, *args, **kwargs):
-        return cls(cls.SUBMIT, [v, leader_id],  *args, **kwargs)
+        return cls(cls.SUBMIT, [v, leader_id], *args, **kwargs)
 
     @classmethod
-    def make_phase_1a(cls, c_rnd,  *args, **kwargs):
-        return cls(cls.PHASE_1A, [c_rnd],  *args, **kwargs)
+    def make_phase_1a(cls, c_rnd, *args, **kwargs):
+        return cls(cls.PHASE_1A, [c_rnd], *args, **kwargs)
 
     @classmethod
     def make_phase_1b(cls, rnd, v_rnd, v_val, *args, **kwargs):
         return cls(cls.PHASE_1B, [rnd, v_rnd, v_val], *args, **kwargs)
 
     @classmethod
-    def make_phase_1c(cls, v_rnd,  *args, **kwargs):
-        return cls(cls.PHASE_1C, [v_rnd],  *args, **kwargs)
+    def make_phase_1c(cls, v_rnd, *args, **kwargs):
+        return cls(cls.PHASE_1C, [v_rnd], *args, **kwargs)
 
     @classmethod
-    def make_phase_2a(cls, c_rnd, c_val,  *args, **kwargs):
-        return cls(cls.PHASE_2A, [c_rnd, c_val],  *args, **kwargs)
+    def make_phase_2a(cls, c_rnd, c_val, *args, **kwargs):
+        return cls(cls.PHASE_2A, [c_rnd, c_val], *args, **kwargs)
 
     @classmethod
-    def make_phase_2b(cls, v_rnd, v_val,  *args, **kwargs):
-        return cls(cls.PHASE_2B, [v_rnd, v_val],  *args, **kwargs)
+    def make_phase_2b(cls, v_rnd, v_val, *args, **kwargs):
+        return cls(cls.PHASE_2B, [v_rnd, v_val], *args, **kwargs)
 
     @classmethod
-    def make_decide(cls, v_val,  *args, **kwargs):
-        return cls(cls.DECIDE, [v_val],  *args, **kwargs)
+    def make_decide(cls, v_val, *args, **kwargs):
+        return cls(cls.DECIDE, [v_val], *args, **kwargs)
 
     @classmethod
     def ping_from_leader(cls, leader_id, *args, **kwargs):
@@ -105,6 +109,14 @@ class Message:
     @classmethod
     def make_phase_2l(cls, leader_id, *args, **kwargs):
         return cls(cls.PHASE_2L, [leader_id], *args, **kwargs)
+
+    @classmethod
+    def make_phase_share_state_1a(cls, *args, **kwargs):
+        return cls(cls.SHARE_STATE_1A, *args, **kwargs)
+
+    @classmethod
+    def make_phase_share_state_1b(cls, state, *args, **kwargs):
+        return cls(cls.SHARE_STATE_1B, [state], *args, **kwargs)
 
     @classmethod
     def make_leader_dead(cls, *args, **kwargs):
