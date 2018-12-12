@@ -116,7 +116,10 @@ dmypy.json
 
 .idea/
 core/paxos-tests/learn1
+<<<<<<< HEAD
+=======
 
 core/paxos-tests/learn2
 
 core/paxos-tests/prop\.sorted
+>>>>>>> 7ae9516855e46be16cbdb7c2ff13b692fe14358a
